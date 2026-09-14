@@ -254,6 +254,10 @@
                 <span>Filters</span>
                 <i id="filter-chevron" data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-tranform duration-200 ease-in-out"></i>
               </button>
+
+              <!-- <div id="live-search-dropdown" class="hidden absolute left-0 right-14 top-full mt-2 bg-white border border-slate-200 rounded-xl shadow-float z-50 overflow-hidden">
+                <div id="live-results-list" class="max-h-60 overflow-y-auto divide-y divide-slate-100 hide-scrollbar"></div>
+              </div> -->
             </div>
 
             <div id="filter-panel" class="hidden mt-2 p-3 bg-white border border-slate-200 rounded-xl shadow-subtle">
@@ -489,7 +493,7 @@
             <!-- Real-time Filter Field -->
             <div class="relative mb-4">
                 <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                <input type="text" id="abbrev-search" placeholder="Type letters (e.g. CM, SMH, FNB)..." class="w-full h-11 bg-white border border-slate-200 rounded-xl pl-10 pr-4 text-sm outline-none shadow-subtle focus:border-wits-700">
+                <input type="text" id="abbrev-search" oninput="filterAbbreviations(this.value)" placeholder="Type letters (e.g. CM, SMH, FNB)..." class="w-full h-11 bg-white border border-slate-200 rounded-xl pl-10 pr-4 text-sm outline-none shadow-subtle focus:border-wits-700">
             </div>
 
             <!-- Live Dictionary Cards -->
@@ -830,7 +834,7 @@
     let navigating = false;
 
     const searchInput = document.getElementById("search-input");
-    const filterButton = document.getElementById("filter-button");
+    const HomefilterButton = document.getElementById("filter-button");
     const filterPanel = document.getElementById("filter-panel");
     const filterChevron = document.getElementById("filter-chevron");
 
@@ -885,7 +889,7 @@
       }
     }
 
-    filterButton.addEventListener("click", () => {
+    HomefilterButton.addEventListener("click", () => {
       const ispanelHidden = filterPanel.classList.toggle("hidden");
 
       if (ispanelHidden) {
@@ -1019,6 +1023,31 @@
 
     // Initial state
     updateDestination("oldMutual");
+
+    // ==========================================
+    // ABBREVIATIONS SCREEN REAL-TIME FILTER
+    // ==========================================
+    function filterAbbreviations(query) {
+      const sanitizedQuery = query.trim().toLowerCase();
+      const cards = document.querySelectorAll('.abbrev-card');
+      
+      cards.forEach(card => {
+        const acronymText = card.querySelector('span') ? card.querySelector('span').textContent.toLowerCase() : '';
+        const titleText = card.querySelector('h4') ? card.querySelector('h4').textContent.toLowerCase() : '';
+        const descriptionText = card.querySelector('p') ? card.querySelector('p').textContent.toLowerCase() : '';
+        
+        if (acronymText.includes(sanitizedQuery) || 
+            titleText.includes(sanitizedQuery)) {
+          
+          card.style.display = ""; 
+          
+        } else {
+          card.style.display = "none";
+          
+        }
+      });
+    }
+
   </script>
 </body>
 </html>
