@@ -1061,20 +1061,22 @@
       else {
         // Mobile Rules: Filter everything including the contacts list panel as a card
         if (selectedType === "medical") {
-            medicalCards.forEach(card => card.classList.remove("hidden"));
-            securityCards.forEach(card => card.classList.add("hidden"));
-            contactsSidebarPanel.className = "hidden"; // Hide completely
+          medicalCards.forEach(card => card.classList.remove("hidden"));
+          securityCards.forEach(card => card.classList.add("hidden"));
+          contactsSidebarPanel.className = "hidden"; // Hide completely
         } 
         else if (selectedType === "security") {
-            medicalCards.forEach(card => card.classList.add("hidden"));
-            securityCards.forEach(card => card.classList.remove("hidden"));
-            contactsSidebarPanel.className = "hidden"; // Hide completely
+          medicalCards.forEach(card => card.classList.add("hidden"));
+          securityCards.forEach(card => card.classList.remove("hidden"));
+          contactsSidebarPanel.className = "hidden"; // Hide completely
         }
-         else if (selectedType === "contacts") {
-            medicalCards.forEach(card => card.classList.add("hidden"));
-            securityCards.forEach(card => card.classList.add("hidden"));
-            // Make the aside style look like a normal stacked element card block on mobile
-            contactsSidebarPanel.className = "block bg-white border border-slate-200/80 rounded-2xl p-5 shadow-subtle";
+        else if (selectedType === "contacts") {
+          medicalCards.forEach(card => card.classList.add("hidden"));
+          securityCards.forEach(card => card.classList.add("hidden"));
+          // Make the aside style look like a normal stacked element card block on mobile
+          if (contactsSidebarPanel) {
+            contactsSidebarPanel.className = "block bg-white border border-slate-200/80 rounded-2xl p-5 shadow-subtle -mt-6";
+          }        
         }
       }
     }
@@ -1086,8 +1088,31 @@
 
     // Also reset the view states if the screen size changes dynamically live
     window.addEventListener("resize", () => {
-      // Default back to showing medical cards on layout resizing
-      runEmergencyFilter("medical");
+      // 1. Detect which chip currently carries the active background style color
+      const isMedicalActive = filterMedicalBtn && filterMedicalBtn.classList.contains("bg-wits-900");
+      const isSecurityActive = filterSecurityBtn && filterSecurityBtn.classList.contains("bg-wits-900");
+      const isContactsActive = filterContactsBtn && filterContactsBtn.classList.contains("bg-wits-900");
+
+      // 2. Check the view layout width (1024px matches Tailwind's 'lg:' desktop breakpoint)
+      const isDesktop = window.innerWidth >= 1024;
+
+      // 3. Re-run your filter function preserving the active type state parameters
+      if (isMedicalActive) {
+        runEmergencyFilter("medical");
+      } 
+      else if (isSecurityActive) {
+        runEmergencyFilter("security");
+      } 
+      else if (isContactsActive) {
+        // If the contacts chip was chosen on mobile, but the user scales up to desktop size,
+        // default back to medical since the chip itself vanishes on desktops.
+        if (isDesktop) {
+          runEmergencyFilter("medical");
+        } 
+        else {
+          runEmergencyFilter("contacts");
+        }
+      }
     });
 
 
