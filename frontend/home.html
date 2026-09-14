@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Wits Nav - Campus Navigation PWA</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            wits: {
+              900: '#002855', /* Official Wits Deep Navy */
+              800: '#0b3970',
+              700: '#154c8d',
+              gold: '#ffb81c', /* Official Wits Gold */
+              goldLight: '#fff7e6',
+              goldHover: '#e5a519',
+              slateBg: '#f1f5f9',
+            }
+          },
+          boxShadow: {
+            'subtle': '0 2px 10px -2px rgba(0, 40, 85, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04)',
+            'float': '0 10px 25px -5px rgba(0, 40, 85, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.08)',
+          }
+        }
+      }
+    }
+  </script>
+ <style>
+    html, body {
+      min-height: 100%;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+    }
+
+    body {
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .map-grid-pattern {
+      background-color: #eef2f3;
+      background-image:
+        linear-gradient(rgba(255,255,255,.8) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.8) 1px, transparent 1px),
+        linear-gradient(35deg, transparent 46%, rgba(148,163,184,.14) 47%, rgba(148,163,184,.14) 53%, transparent 54%);
+      background-size: 42px 42px, 42px 42px, 180px 180px;
+    }
+
+    .map-road {
+      position: absolute;
+      background: rgba(255,255,255,.9);
+      border: 1px solid rgba(148,163,184,.25);
+      border-radius: 999px;
+      transform-origin: center;
+    }
+
+    .map-building {
+      position: absolute;
+      background: #dbe4df;
+      border: 1px solid #c5d0cb;
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(15,23,42,.05);
+    }
+
+    .map-green {
+      position: absolute;
+      background: #dcebdc;
+      border: 1px solid #c8dfc8;
+      border-radius: 10px;
+    }
+
+    @keyframes pulse-ring {
+      0%, 100% { transform: scale(.92); opacity: .55; }
+      50% { transform: scale(1.45); opacity: .15; }
+    }
+
+    .pulse-ring {
+      animation: pulse-ring 2.4s ease-in-out infinite;
+    }
+
+    @keyframes route-dash {
+      to { stroke-dashoffset: -24; }
+    }
+
+    .route-line {
+      animation: route-dash 1.1s linear infinite;
+    }
+
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    @media (max-width: 767px) {
+      .mobile-map {
+        min-height: 48vh;
+      }
+    }
+
+    @media (min-width: 768px) {
+      .desktop-map {
+        min-height: 560px;
+      }
+    }
+  </style>
+</head>
+
+<body class="antialiased selection:bg-wits-gold selection:text-wits-900">
+
+  <div class="min-h-dvh flex flex-col bg-slate-50">
+
+    <!-- =========================
+         TOP NAVIGATION
+    ========================== -->
+    <header class="h-16 md:h-[72px] bg-wits-900 text-white flex-shrink-0 z-50 shadow-lg">
+      <div class="h-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-wits-gold text-wits-900 flex items-center justify-center shadow-sm">
+            <i data-lucide="compass" class="w-5 h-5 md:w-6 md:h-6"></i>
+          </div>
+
+          <div class="leading-none">
+            <div class="flex items-center gap-2">
+              <h1 class="text-lg md:text-xl font-extrabold tracking-tight">Wits Nav</h1>
+              <span class="hidden sm:inline-flex text-[10px] font-bold uppercase tracking-wider text-wits-900 bg-wits-gold px-2 py-1 rounded-full">
+                Campus
+              </span>
+            </div>
+            <p class="text-[11px] text-blue-100/70 mt-1">
+              Braamfontein Campus
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 sm:gap-3">
+          <div id="gps-pill"
+                  type="button"
+                  class="flex items-center gap-2 px-3 py-2 rounded-full bg-emerald-500/10 border border-emerald-400/30 text-emerald-100 cursor-default select-none">
+            <span class="relative flex h-2 w-2">
+              <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+            </span>
+            <span id="gps-text" class="text-xs font-bold">GPS Active</span>
+        </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- =========================
+         APP BODY
+    ========================== -->
+    <div class="flex-1 flex min-h-0">
+
+      <!-- DESKTOP SIDEBAR -->
+      <aside class="hidden lg:flex w-[220px] xl:w-[240px] bg-wits-900 text-white flex-col flex-shrink-0">
+
+        <div class="p-4 space-y-1">
+            <!-- Desktop Home Tab -->
+          <button id="sidebar-home-btn" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-wits-gold text-wits-900 font-bold text-sm transition">
+            <i data-lucide="house" class="w-4 h-4"></i>
+            <span>
+                Home
+            </span>
+          </button>
+
+          <!-- <button id="sidebar-search-btn" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-blue-100 hover:bg-white/10 font-medium text-sm transition">
+            <i data-lucide="search" class="w-4 h-4"></i>
+            <span>
+                Find a Building
+            </span>
+          </button> -->
+
+          <button id="sidebar-abbrev-btn" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-blue-100 hover:bg-white/10 font-medium text-sm transition">
+            <i data-lucide="book-open" class="w-4 h-4"></i>
+            <span>
+                Abbreviations
+            </span>
+          </button>
+
+          <button id="sidebar-emergency-btn" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-blue-100 hover:bg-white/10 font-medium text-sm transition">
+            <i data-lucide="shield" class="w-4 h-4"></i>
+            <span>
+                Emergency
+            </span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT -->
+      <main class="flex-1 min-w-0 min-h-0 overflow-y-auto">
+        <div id="home-screen" class="max-w-[1360px] mx-auto p-3 sm:p-5 lg:p-6 xl:p-8 pb-24 lg:pb-8 mb-[100px]">
+
+          <!-- SEARCH / HERO -->
+          <section class="mb-4 sm:mb-5">
+            <div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
+
+              <div>
+                <p class="text-xs font-bold uppercase tracking-[0.16em] text-wits-700 mb-1">
+                  Explore campus
+                </p>
+                <h2 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-wits-900">
+                  Where do you want to go?
+                </h2>
+                <p class="text-sm text-slate-500 mt-1">
+                  Find buildings, venues, residences, entrances and places around Wits.
+                </p>
+              </div>
+
+              <div class="hidden sm:flex items-center gap-2 text-xs text-slate-500">
+                <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-white border border-slate-200 shadow-subtle">
+                  <i data-lucide="navigation" class="w-3.5 h-3.5 text-wits-gold"></i>
+                  Walking directions
+                </span>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-row items-center gap-2">
+              <label class="relative flex-1">
+                <span class="sr-only">Search campus</span>
+                <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
+                <input id="search-input"
+                       type="search"
+                       placeholder="Search buildings, venues, residences..."
+                       class="w-full h-12 sm:h-14 bg-white border border-slate-200 rounded-xl sm:rounded-2xl pl-12 pr-4 text-sm sm:text-base outline-none shadow-subtle focus:ring-2 focus:ring-wits-900/20 focus:border-wits-700 transition">
+              </label>
+
+              <button id="filter-button"
+                      type="button"
+                      class="h-12 px-3 rounded-xl bg-white border border-slate-200 shadow-subtle flex items-center justify-center gap-1.5 text-sm font-semibold text-wits-900 hover:border-wits-700 transition">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+                <span>Filters</span>
+                <i id="filter-chevron" data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-tranform duration-200 ease-in-out"></i>
+              </button>
+            </div>
+
+            <div id="filter-panel" class="hidden mt-2 p-3 bg-white border border-slate-200 rounded-xl shadow-subtle">
+              <div class="flex flex-wrap gap-2">
+                <button class="filter-chip px-3 py-2 rounded-lg bg-wits-900 text-white text-xs font-semibold" data-filter="all">All places</button>
+                <button class="filter-chip px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold" data-filter="building">Buildings</button>
+                <button class="filter-chip px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold" data-filter="venue">Venues</button>
+                <button class="filter-chip px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold" data-filter="residence">Residences</button>
+                <button class="filter-chip px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold" data-filter="entrance">Entrances</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- RESPONSIVE WORKSPACE -->
+          <section class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4 lg:gap-5">
+
+            <!-- MAP -->
+            <div class="relative bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-subtle overflow-hidden desktop-map mobile-map">
+
+              <div id="map" class="relative w-full h-full min-h-[440px] sm:min-h-[500px] lg:min-h-[560px] map-grid-pattern overflow-hidden">
+
+                <!-- Decorative map terrain -->
+                <div class="map-green left-[4%] top-[9%] w-[25%] h-[20%]"></div>
+                <div class="map-green left-[56%] top-[7%] w-[32%] h-[18%]"></div>
+                <div class="map-green left-[63%] bottom-[7%] w-[25%] h-[20%]"></div>
+                <div class="map-green left-[5%] bottom-[10%] w-[31%] h-[17%]"></div>
+
+                <div class="map-building left-[35%] top-[11%] w-[15%] h-[12%]"></div>
+                <div class="map-building left-[52%] top-[29%] w-[20%] h-[13%]"></div>
+                <div class="map-building left-[18%] top-[36%] w-[17%] h-[16%]"></div>
+                <div class="map-building left-[39%] bottom-[17%] w-[18%] h-[14%]"></div>
+                <div class="map-building left-[73%] bottom-[30%] w-[13%] h-[17%]"></div>
+                <div class="map-building left-[6%] bottom-[32%] w-[17%] h-[12%]"></div>
+
+                <div class="map-road left-[-5%] top-[46%] w-[110%] h-[22px] rotate-[-8deg]"></div>
+                <div class="map-road left-[44%] top-[-5%] w-[24px] h-[115%] rotate-[7deg]"></div>
+                <div class="map-road left-[12%] top-[70%] w-[80%] h-[18px] rotate-[12deg]"></div>
+
+                <!-- Map labels -->
+                <span class="absolute left-[13%] top-[31%] text-[10px] sm:text-xs font-semibold text-slate-500">Library</span>
+                <span class="absolute left-[43%] top-[28%] text-[10px] sm:text-xs font-semibold text-slate-500">University Square</span>
+                <span class="absolute right-[17%] top-[48%] text-[10px] sm:text-xs font-semibold text-slate-500">Great Hall</span>
+                <span class="absolute left-[10%] bottom-[28%] text-[10px] sm:text-xs font-semibold text-slate-500">Chamber of Mines</span>
+                <span class="absolute right-[13%] bottom-[29%] text-[10px] sm:text-xs font-semibold text-slate-500">WAM</span>
+
+                <!-- Route -->
+                <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1000 700" preserveAspectRatio="none">
+                  <path d="M270 535 C340 500 375 430 445 390 C520 348 570 335 610 270 C650 210 715 195 790 145"
+                        fill="none"
+                        stroke="#ffffff"
+                        stroke-width="15"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        opacity=".9"/>
+                  <path id="route-path"
+                        class="route-line"
+                        d="M270 535 C340 500 375 430 445 390 C520 348 570 335 610 270 C650 210 715 195 790 145"
+                        fill="none"
+                        stroke="#002855"
+                        stroke-width="7"
+                        stroke-dasharray="12 12"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"/>
+                </svg>
+
+                <!-- Current location -->
+                <div class="absolute left-[27%] top-[76%] -translate-x-1/2 -translate-y-1/2">
+                  <div class="absolute -inset-5 rounded-full bg-blue-400/20 pulse-ring"></div>
+                  <div class="relative w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-blue-600 border-[4px] border-white shadow-lg"></div>
+                </div>
+
+                <!-- Destination -->
+                <div id="destination-marker" class="absolute left-[79%] top-[21%] -translate-x-1/2 -translate-y-1/2">
+                  <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-wits-gold/30 flex items-center justify-center">
+                    <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-wits-gold border-[3px] border-wits-900 shadow-lg flex items-center justify-center">
+                      <i data-lucide="map-pin" class="w-4 h-4 text-wits-900 fill-wits-900"></i>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Destination bubble -->
+                <div class="absolute left-[79%] top-[12%] -translate-x-1/2 bg-white/95 backdrop-blur rounded-xl shadow-float border border-slate-200 px-3 py-2 min-w-[145px]">
+                  <p id="map-destination-title" class="text-xs font-extrabold text-wits-900 truncate">Old Mutual Building</p>
+                  <p id="map-destination-meta" class="text-[10px] text-slate-500 mt-0.5">320 m · 4 min walk</p>
+                </div>
+
+                <!-- Map controls -->
+                <div class="absolute top-4 right-4 flex flex-col gap-2">
+                  <button type="button" class="map-control w-10 h-10 rounded-xl bg-white shadow-float border border-slate-200 flex items-center justify-center text-wits-900 hover:bg-slate-50 active:scale-95 transition" title="Layers">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                  </button>
+                  <div class="bg-white shadow-float border border-slate-200 rounded-xl overflow-hidden">
+                    <button type="button" class="map-control w-10 h-10 flex items-center justify-center text-wits-900 hover:bg-slate-50 border-b border-slate-100" title="Zoom in">
+                      <i data-lucide="plus" class="w-5 h-5"></i>
+                    </button>
+                    <button type="button" class="map-control w-10 h-10 flex items-center justify-center text-wits-900 hover:bg-slate-50" title="Zoom out">
+                      <i data-lucide="minus" class="w-5 h-5"></i>
+                    </button>
+                  </div>
+                  <button id="recenter-button" type="button" class="w-10 h-10 rounded-xl bg-white shadow-float border border-slate-200 flex items-center justify-center text-wits-900 hover:bg-slate-50 active:scale-95 transition" title="Recenter">
+                    <i data-lucide="locate-fixed" class="w-5 h-5"></i>
+                  </button>
+                </div>
+
+                <!-- Map mode -->
+                <div class="absolute top-4 left-4">
+                  <div class="bg-white/95 backdrop-blur px-3 py-2 rounded-xl shadow-subtle border border-slate-200 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span id="route-label" class="text-[11px] sm:text-xs font-bold text-wits-900">Walking route</span>
+                  </div>
+                </div>
+
+                <!-- ETA -->
+                <div class="absolute left-1/2 -translate-x-1/2 bottom-4 sm:bottom-5">
+                  <div class="bg-wits-900 text-white px-4 py-2.5 rounded-2xl shadow-float flex items-center gap-3 whitespace-nowrap">
+                    <div class="flex items-center gap-1.5">
+                      <i data-lucide="footprints" class="w-4 h-4 text-wits-gold"></i>
+                      <span id="eta-text" class="text-xs font-bold">4 min walk</span>
+                    </div>
+                    <span class="w-px h-4 bg-white/20"></span>
+                    <span class="text-[11px] text-blue-100">320 m</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- RIGHT INFORMATION PANEL -->
+            <aside class="space-y-3 sm:space-y-4">
+
+              <!-- Destination card -->
+              <div class="bg-white rounded-2xl border border-slate-200 shadow-subtle p-4 sm:p-5">
+                <div class="flex items-start gap-3">
+                  <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="building-2" class="w-6 h-6 text-wits-700"></i>
+                  </div>
+
+                  <div class="min-w-0 flex-1">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Destination</p>
+                    <h3 id="destination-title" class="text-base font-extrabold text-wits-900 truncate mt-0.5">
+                      Old Mutual Building
+                    </h3>
+                    <p id="destination-category" class="text-xs text-slate-500 mt-1">
+                      Main Campus · Building
+                    </p>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100">
+                  <div class="bg-slate-50 rounded-xl p-3">
+                    <i data-lucide="footprints" class="w-4 h-4 text-wits-700 mb-2"></i>
+                    <p class="text-sm font-extrabold text-wits-900" id="walk-time">4 min</p>
+                    <p class="text-[10px] text-slate-500">Walking time</p>
+                  </div>
+
+                  <div class="bg-slate-50 rounded-xl p-3">
+                    <i data-lucide="route" class="w-4 h-4 text-wits-gold mb-2"></i>
+                    <p class="text-sm font-extrabold text-wits-900" id="walk-distance">320 m</p>
+                    <p class="text-[10px] text-slate-500">Distance</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quick access -->
+              <div class="bg-white rounded-2xl border border-slate-200 shadow-subtle p-3">
+                <div class="px-2 py-1.5 flex items-center justify-between">
+                  <h3 class="text-sm font-extrabold text-wits-900">Quick Access</h3>
+                </div>
+
+                <div class="mt-1 divide-y divide-slate-100">
+                  <button class="quick-access w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition" data-place="Residences">
+                    <span class="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+                      <i data-lucide="house" class="w-4 h-4"></i>
+                    </span>
+                    <span class="flex-1 text-left">
+                      <span class="block text-xs font-bold text-slate-800">Residences</span>
+                      <span class="block text-[10px] text-slate-400 mt-0.5">Student accommodation</span>
+                    </span>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300"></i>
+                  </button>
+
+                  <button class="quick-access w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition" data-place="Campus Entrances">
+                    <span class="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                      <i data-lucide="door-open" class="w-4 h-4"></i>
+                    </span>
+                    <span class="flex-1 text-left">
+                      <span class="block text-xs font-bold text-slate-800">Campus Entrances</span>
+                      <span class="block text-[10px] text-slate-400 mt-0.5">Gates & access points</span>
+                    </span>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300"></i>
+                  </button>
+
+                  <button class="quick-access w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-50/40 transition" data-place="Emergency Services">
+                    <span class="w-9 h-9 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                      <i data-lucide="shield" class="w-4 h-4"></i>
+                    </span>
+                    <span class="flex-1 text-left">
+                      <span class="block text-xs font-bold text-slate-800">Emergency &amp; Health</span>
+                      <span class="block text-[10px] text-slate-400 mt-0.5">Clinics &amp; security assistance</span>
+                    </span>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Universal message -->
+              <div class="hidden xl:block rounded-2xl bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-5">
+                <div class="w-10 h-10 rounded-xl bg-wits-900 text-wits-gold flex items-center justify-center mb-3">
+                  <i data-lucide="users" class="w-5 h-5"></i>
+                </div>
+                <h3 class="font-extrabold text-wits-900">For everyone</h3>
+                <p class="text-xs text-slate-600 leading-relaxed mt-1.5">
+                  Whether you're finding your next lecture or exploring Wits for the first time, Wits Nav helps you get there.
+                </p>
+              </div>
+            </aside>
+          </section>
+        </div>
+
+        <!-- DEDICATED ABBREVIATIONS SCREEN -->
+        <div id="abbrev-screen" class="hidden max-w-[1360px] mx-auto p-3 sm:p-5 lg:p-6 xl:p-8 pb-24 lg:pb-8 mb-[100px]">
+            <div class="mb-4 sm:mb-5">
+                <p class="text-xs font-bold uppercase tracking-[0.16em] text-wits-700 mb-1">
+                    Learn campus abbreviations
+                </p>
+                <h2 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-wits-900">
+                    Campus Acronyms Glossary
+                </h2>
+                <p class="text-sm text-slate-500 mt-1">
+                    Quickly find building acronyms listed on your Wits timetables.
+                </p>
+            </div>
+        
+            <!-- Real-time Filter Field -->
+            <div class="relative mb-4">
+                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                <input type="text" id="abbrev-search" placeholder="Type letters (e.g. CM, SMH, FNB)..." class="w-full h-11 bg-white border border-slate-200 rounded-xl pl-10 pr-4 text-sm outline-none shadow-subtle focus:border-wits-700">
+            </div>
+
+            <!-- Live Dictionary Cards -->
+            <div id="abbrev-list" class="flex flex-col gap-2">
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-subtle flex justify-between items-center abbrev-card">
+                    <div>
+                        <span class="inline-block bg-wits-gold/10 text-wits-900 text-xs font-black px-2 py-0.5 rounded border border-wits-gold/20">SMH</span>
+                        <h4 class="text-sm font-bold text-slate-800 mt-1">Solomon Mahlangu House</h4>
+                        <p class="text-[10px] text-slate-400">East Campus · Administration & Lecture Halls</p>
+                    </div>
+                </div>
+    
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-subtle flex justify-between items-center abbrev-card">
+                    <div>
+                        <span class="inline-block bg-wits-gold/10 text-wits-900 text-xs font-black px-2 py-0.5 rounded border border-wits-gold/20">CM</span>
+                        <h4 class="text-sm font-bold text-slate-800 mt-1">Chamber of Mines Building</h4>
+                        <p class="text-[10px] text-slate-400">West Campus · Engineering & Built Environment</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-subtle flex justify-between items-center abbrev-card">
+                    <div>
+                        <span class="inline-block bg-wits-gold/10 text-wits-900 text-xs font-black px-2 py-0.5 rounded border border-wits-gold/20">FNB</span>
+                        <h4 class="text-sm font-bold text-slate-800 mt-1">FNB Building</h4>
+                        <p class="text-[10px] text-slate-400">West Campus · Commerce, Law & Management</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-subtle flex justify-between items-center abbrev-card">
+                    <div>
+                        <span class="inline-block bg-wits-gold/10 text-wits-900 text-xs font-black px-2 py-0.5 rounded border border-wits-gold/20">RSH</span>
+                        <h4 class="text-sm font-bold text-slate-800 mt-1">Robert Sobukwe House</h4>
+                        <p class="text-[10px] text-slate-400">East Campus · Administration & Lecture Halls</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-subtle flex justify-between items-center abbrev-card">
+                    <div>
+                        <span class="inline-block bg-wits-gold/10 text-wits-900 text-xs font-black px-2 py-0.5 rounded border border-wits-gold/20">WSS</span>
+                        <h4 class="text-sm font-bold text-slate-800 mt-1">Wits Science Stadium</h4>
+                        <p class="text-[10px] text-slate-400">East Campus · Administration & Lecture Halls</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-subtle flex justify-between items-center abbrev-card">
+                    <div>
+                        <span class="inline-block bg-wits-gold/10 text-wits-900 text-xs font-black px-2 py-0.5 rounded border border-wits-gold/20">NCB</span>
+                        <h4 class="text-sm font-bold text-slate-800 mt-1">New Commerce Building</h4>
+                        <p class="text-[10px] text-slate-400">East Campus · Administration & Lecture Halls</p>
+                    </div>
+                </div>
+
+                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-subtle flex justify-between items-center abbrev-card">
+                    <div>
+                        <span class="inline-block bg-wits-gold/10 text-wits-900 text-xs font-black px-2 py-0.5 rounded border border-wits-gold/20">UB</span>
+                        <h4 class="text-sm font-bold text-slate-800 mt-1">Umthombo Building</h4>
+                        <p class="text-[10px] text-slate-400">East Campus · Administration & Lecture Halls</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- EMERGENCY / SOS SCREEN CONTAINER -->
+        <div id="emergency-screen" class="hidden max-w-[1360px] mx-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 mb-[100px]">
+          
+          <!-- Header Intro Section -->
+          <div class="mb-6">
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-600 mb-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+              <span class="text-[10px] font-bold uppercase tracking-wider">Campus Safety Support</span>
+            </div>
+            <h2 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-wits-900">
+              Emergency Services & Health
+            </h2>
+            <p class="text-sm text-slate-500 mt-1">
+              Locate safety centers, clinics, and direct assistance points across all Wits campuses.
+            </p>
+          </div>
+
+          <!-- Primary 2-Column Grid Layout -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            
+            <!-- LEFT SIDE: Emergency Locations List (Takes 2 columns on desktop) -->
+            <div class="lg:col-span-2 space-y-4">
+              
+              <!-- Filter Segment Control -->
+              <div class="flex gap-2 border-b border-slate-200 pb-3 mb-4 overflow-x-auto">
+                <button id="filter-medical-btn" class="px-4 py-1.5 text-xs font-medium bg-white text-slate-600 border border-slate-200 rounded-full whitespace-nowrap hover:bg-slate-50 transition">
+                  Clinics & Medical
+                </button>
+                <button id="filter-security-btn" class="px-4 py-1.5 text-xs font-medium bg-white text-slate-600 border border-slate-200 rounded-full whitespace-nowrap hover:bg-slate-50 transition">
+                  Security & Protection
+                </button>
+                 <button id="filter-contacts-btn" class="lg:hidden px-4 py-1.5 text-xs font-bold bg-wits-900 text-white rounded-full whitespace-nowrap transition">
+                  Contact Details
+                </button>
+              </div>
+
+              <!-- Card 1: Main Campus Control Center -->
+              <div data-type="security" class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-subtle hover:border-slate-300 transition duration-200">
+                <div class="flex justify-between items-start gap-4">
+                  <div class="flex gap-3.5 items-start">
+                    <div class="p-3 rounded-xl bg-wits-goldLight text-wits-900 shrink-0 border border-wits-gold/20">
+                      <i data-lucide="shield" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <h4 class="font-bold text-wits-900 text-base">Campus Control Command Center</h4>
+                        <span class="px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">Open 24/7</span>
+                      </div>
+                      <p class="text-xs text-slate-500 mt-0.5">Central Block, Ground Floor — East Campus</p>
+                      <p class="text-xs text-slate-600 mt-2 leading-relaxed">
+                        Main deployment hub for physical campus security escorts, vehicle assistance, and tactical rapid response.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2 justify-end">
+                  <button class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5">
+                    <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Show Route
+                  </button>
+                </div>
+              </div>
+
+              <!-- Card 2: Campus Health Wellness Centre -->
+              <div data-type="medical" class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-subtle hover:border-slate-300 transition duration-200">
+                <div class="flex justify-between items-start gap-4">
+                  <div class="flex gap-3.5 items-start">
+                    <div class="p-3 rounded-xl bg-blue-50 text-blue-600 shrink-0 border border-blue-100">
+                      <i data-lucide="heart-pulse" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <h4 class="font-bold text-wits-900 text-base">Campus Health & Wellness Centre</h4>
+                        <span class="px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 rounded">08:00 - 16:30</span>
+                      </div>
+                      <p class="text-xs text-slate-500 mt-0.5">Matrix Building, 1st Floor — East Campus</p>
+                      <p class="text-xs text-slate-600 mt-2 leading-relaxed">
+                        Offers emergency outpatient care, primary healthcare consultations, medical screening, and mental health support.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2 justify-end">
+                  <button class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5">
+                    <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Show Route
+                  </button>
+                </div>
+              </div>
+
+              <!-- Card 3: West Campus Security Office -->
+              <div data-type="security" class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-subtle hover:border-slate-300 transition duration-200">
+                <div class="flex justify-between items-start gap-4">
+                  <div class="flex gap-3.5 items-start">
+                    <div class="p-3 rounded-xl bg-wits-goldLight text-wits-900 shrink-0 border border-wits-gold/20">
+                      <i data-lucide="shield" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <h4 class="font-bold text-wits-900 text-base">West Campus Security Sub-Station</h4>
+                        <span class="px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">Open 24/7</span>
+                      </div>
+                      <p class="text-xs text-slate-500 mt-0.5">FNB Building Concourse — West Campus</p>
+                      <p class="text-xs text-slate-600 mt-2 leading-relaxed">
+                        Localized safety office monitoring West Campus borders, walkways, and commercial zones.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2 justify-end">
+                  <button class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5">
+                    <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Show Route
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- RIGHT SIDE: Contact Panel (Takes 1 column on desktop) -->
+            <aside id="emergency-contacts-sidebar" class="hidden lg:block bg-white border border-slate-200/80 rounded-2xl p-5 shadow-subtle sticky top-24">
+              <!-- Panel Header -->
+              <div class="border-b border-slate-100 pb-3 mb-4">
+                <h3 class="font-bold text-wits-900 text-base flex items-center gap-2">
+                  <i data-lucide="phone-call" class="w-4 h-4 text-wits-gold"></i>
+                  Emergency Hotlines
+                </h3>
+                <p class="text-xs text-slate-500 mt-0.5">Instant one-tap direct phone dials</p>
+              </div>
+
+              <!-- Actionable Contact List -->
+              <div class="space-y-3">
+                
+                <!-- Helpline item 1 -->
+                <a href="tel:+27117174444" class="group flex items-center justify-between p-3 rounded-xl bg-rose-50 border border-rose-100 hover:bg-rose-100 hover:border-rose-200 transition">
+                  <div class="flex gap-3 items-center">
+                    <div class="p-2 rounded-lg bg-rose-500 text-white">
+                      <i data-lucide="phone" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                      <h4 class="text-xs font-bold text-rose-950">Campus Control (East/West)</h4>
+                      <p class="text-[10px] text-rose-700 font-mono mt-0.5">011 717 4444</p>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition"></i>
+                </a>
+
+                <!-- Helpline item 2 -->
+                <a href="tel:+27117176666" class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition">
+                  <div class="flex gap-3 items-center">
+                    <div class="p-2 rounded-lg bg-wits-900 text-white">
+                      <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                      <h4 class="text-xs font-bold text-wits-900">Health &amp; Wellness Line</h4>
+                      <p class="text-[10px] text-slate-500 font-mono mt-0.5">011 717 6666</p>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition"></i>
+                </a>
+
+                <!-- Helpline item 3 -->
+                <a href="tel:+27800111333" class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition">
+                  <div class="flex gap-3 items-center">
+                    <div class="p-2 rounded-lg bg-slate-700 text-white">
+                      <i data-lucide="smile" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                      <h4 class="text-xs font-bold text-slate-800">Wits Student Crisis Line</h4>
+                      <p class="text-[10px] text-slate-500 font-mono mt-0.5">0800 111 333</p>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition"></i>
+                </a>
+                
+              </div>
+
+              <!-- Helpful Notice Information -->
+              <div class="mt-5 p-3 rounded-xl bg-amber-50/60 border border-amber-200/70 flex gap-2.5 items-start">
+                <i data-lucide="info" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                <p class="text-[10px] text-amber-800 leading-relaxed">
+                  <strong>Tip for Visitors:</strong> Wits physical protection officers can accompany you to your vehicle at night if you request an escort at any guard house point.
+                </p>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+
+      </main>
+    </div>
+
+
+    <!-- MOBILE BOTTOM NAV -->
+    <nav class="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-5px_20px_rgba(0,0,0,.06)]">
+      <div class="max-w-xl mx-auto grid grid-cols-3 h-16">
+        <!-- Home Tab -->
+        <button id="nav-home-btn" class="flex flex-col items-center justify-center gap-1 text-wits-gold font-bold transition">
+          <i data-lucide="house" class="w-5 h-5"></i>
+          <span class="text-[10px]">Home</span>
+        </button>
+        <!-- Search Tab -->
+        <!-- <button id="nav-search-btn" class="flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-wits-900 transition">
+          <i data-lucide="search" class="w-5 h-5"></i>
+          <span class="text-[10px]">Search</span>
+        </button> -->
+        <!-- Abbreviations Tab -->
+        <button id="nav-abbrev-btn" class="flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-wits-900 transition">
+          <i data-lucide="book-open" class="w-5 h-5"></i>
+          <span class="text-[10px]">Abbreviations</span>
+        </button>
+        <!-- More Tab -->
+        <button id="nav-emergency-btn" class="flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-wits-900 transition">
+          <i data-lucide="shield-plus" class="w-5 h-5"></i>
+          <span class="text-[10px]">Emergency</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <!-- =========================
+       INTERACTION LOGIC
+  ========================== -->
+  <script>
+    lucide.createIcons();
+
+    const places = {
+      oldMutual: {
+        title: "Old Mutual Building",
+        category: "Main Campus · Building",
+        time: "4 min",
+        distance: "320 m",
+        meta: "320 m · 4 min walk",
+        instruction: "Head north past Senate House stairs toward Student Union."
+      },
+      matrix: {
+        title: "The Matrix",
+        category: "East Campus · Venue",
+        time: "4 min",
+        distance: "320 m",
+        meta: "320 m · 4 min walk",
+        instruction: "Head north past Senate House stairs toward Student Union."
+      },
+      fnb: {
+        title: "FNB Lecture Hall",
+        category: "West Campus · Venue",
+        time: "9 min",
+        distance: "680 m",
+        meta: "680 m · 9 min walk",
+        instruction: "Cross the Amic Deck bridge toward the West Campus lawn."
+      },
+      solomon: {
+        title: "Solomon Mahlangu Hall",
+        category: "Senate House · Venue",
+        time: "6 min",
+        distance: "450 m",
+        meta: "450 m · 6 min walk",
+        instruction: "Walk through the Senate House concourse toward the hall."
+      },
+      science: {
+        title: "Science Stadium Auditorium",
+        category: "East Campus · Venue",
+        time: "3 min",
+        distance: "210 m",
+        meta: "210 m · 3 min walk",
+        instruction: "Follow the Library lawn pathway toward the Science Stadium."
+      },
+      wam: {
+        title: "Wits Art Museum",
+        category: "Braamfontein · Museum",
+        time: "7 min",
+        distance: "510 m",
+        meta: "510 m · 7 min walk",
+        instruction: "Descend University Road toward the museum entrance."
+      }
+    };
+
+    let selectedPlace = "oldMutual";
+    let navigating = false;
+
+    const searchInput = document.getElementById("search-input");
+    const filterButton = document.getElementById("filter-button");
+    const filterPanel = document.getElementById("filter-panel");
+    const filterChevron = document.getElementById("filter-chevron");
+
+    const destinationTitle = document.getElementById("destination-title");
+    const destinationCategory = document.getElementById("destination-category");
+    const mapDestinationTitle = document.getElementById("map-destination-title");
+    const mapDestinationMeta = document.getElementById("map-destination-meta");
+    const walkTime = document.getElementById("walk-time");
+    const walkDistance = document.getElementById("walk-distance");
+    const etaText = document.getElementById("eta-text");
+    const routeLabel = document.getElementById("route-label");
+    const navButtonText = document.getElementById("nav-btn-text");
+    const liveStepCard = document.getElementById("live-step-card");
+    const stepInstructionText = document.getElementById("step-instruction-text");
+
+    // Tab Screens
+    const homeScreen = document.getElementById("home-screen");
+    const abbrevScreen = document.getElementById("abbrev-screen");
+    const emergencyScreen = document.getElementById("emergency-screen");
+
+    // Bottom Nav Buttons
+    const navHomeBtn = document.getElementById("nav-home-btn");
+    const navSearchBtn = document.getElementById("nav-search-btn");
+    const navAbbrevBtn = document.getElementById("nav-abbrev-btn");
+    const navEmergencyBtn = document.getElementById("nav-emergency-btn");
+
+    // Sidebar Nav Buttons
+    const sidebarHomeBtn = document.getElementById("sidebar-home-btn");
+    const sidebarSearchBtn = document.getElementById("sidebar-search-btn");
+    const sidebarAbbrevBtn = document.getElementById("sidebar-abbrev-btn");
+    const sidebarEmergencyBtn = document.getElementById("sidebar-emergency-btn");
+
+    // Emergency Tab Filter Buttons & Cards
+    const filterMedicalBtn = document.getElementById("filter-medical-btn");
+    const filterSecurityBtn = document.getElementById("filter-security-btn");
+    const filterContactsBtn = document.getElementById("filter-contacts-btn");
+
+    const medicalCards = document.querySelectorAll('div[data-type="medical"]');
+    const securityCards = document.querySelectorAll('div[data-type="security"]');
+    const contactsSidebarPanel = document.getElementById("emergency-contacts-sidebar");
+    
+    const abbrevSearch = document.getElementById("abbrev-search");
+
+    function updateDestination(key) {
+      const data = places[key];
+      if (!data) return;
+
+      selectedPlace = key;
+
+      destinationTitle.textContent = data.title;
+      destinationCategory.textContent = data.category;
+      mapDestinationTitle.textContent = data.title;
+      mapDestinationMeta.textContent = data.meta;
+      walkTime.textContent = data.time;
+      walkDistance.textContent = data.distance;
+      etaText.textContent = data.time + " walk";
+      routeLabel.textContent = "Walking route";
+
+      if (navigating) {
+        stepInstructionText.textContent = data.instruction;
+      }
+    }
+
+    filterButton.addEventListener("click", () => {
+      const ispanelHidden = filterPanel.classList.toggle("hidden");
+
+      if (ispanelHidden) {
+        filterChevron.classList.remove("rotate-180");
+      } else {
+        filterChevron.classList.add("rotate-180");
+      }
+    });
+
+    document.querySelectorAll(".filter-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        document.querySelectorAll(".filter-chip").forEach(item => {
+          item.classList.remove("bg-wits-900", "text-white");
+          item.classList.add("bg-slate-100", "text-slate-700");
+        });
+
+        chip.classList.remove("bg-slate-100", "text-slate-700");
+        chip.classList.add("bg-wits-900", "text-white");
+      });
+    });
+
+    document.querySelectorAll(".quick-access").forEach(button => {
+      button.addEventListener("click", () => {
+        searchInput.value = button.dataset.place;
+        searchInput.focus();
+      });
+    });
+
+    searchInput.addEventListener("keydown", event => {
+      if (event.key !== "Enter") return;
+
+      const value = searchInput.value.toLowerCase();
+
+      if (value.includes("matrix")) updateDestination("matrix");
+      else if (value.includes("fnb")) updateDestination("fnb");
+      else if (value.includes("solomon")) updateDestination("solomon");
+      else if (value.includes("science")) updateDestination("science");
+      else if (value.includes("museum") || value.includes("wam")) updateDestination("wam");
+      else if (value.includes("old mutual")) updateDestination("oldMutual");
+    });
+
+    document.getElementById("recenter-button").addEventListener("click", () => {
+      const map = document.getElementById("map");
+      map.animate(
+        [
+          { transform: "scale(1)" },
+          { transform: "scale(1.015)" },
+          { transform: "scale(1)" }
+        ],
+        { duration: 350, easing: "ease-out" }
+      );
+    });
+
+    const gpsPill = document.getElementById("gps-pill");
+    const gpsText = document.getElementById("gps-text");
+
+    // Tab Switching Logic
+    function setActiveTab(activeButton) {
+        // Setup mobile nav match list
+        const mobileTabs = [navHomeBtn, navSearchBtn, navAbbrevBtn, navEmergencyBtn];
+        const targetMobile = document.getElementById(`nav-${activeButton}-btn`);
+        
+        mobileTabs.forEach(tab => {
+            if (tab && tab === targetMobile) {
+                tab.classList.add("text-wits-gold", "font-bold");
+                tab.classList.remove("text-slate-400", "hover:text-wits-900");
+            } else if (tab) {
+                tab.classList.remove("text-wits-gold", "font-bold");
+                tab.classList.add("text-slate-400", "hover:text-wits-900");
+            }
+        });
+
+        // Setup desktop sidebar match list
+        const sidebarTabs = [sidebarHomeBtn, sidebarSearchBtn, sidebarAbbrevBtn, sidebarEmergencyBtn];
+        const targetSidebar = document.getElementById(`sidebar-${activeButton}-btn`);
+        
+        sidebarTabs.forEach(btn => {
+            if (btn && btn === targetSidebar) {
+                btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-wits-gold text-wits-900 font-bold text-sm transition";
+            } else if (btn) {
+                btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-blue-100 hover:bg-white/10 font-medium text-sm transition";
+            }
+        });
+    }
+
+    if (navHomeBtn) navHomeBtn.addEventListener("click", () => { 
+      setActiveTab("home"); 
+      abbrevScreen.classList.add("hidden"); 
+      emergencyScreen.classList.add("hidden");
+      homeScreen.classList.remove("hidden"); 
+    });
+
+    if (sidebarHomeBtn) sidebarHomeBtn.addEventListener("click", () => { 
+      setActiveTab("home"); 
+      abbrevScreen.classList.add("hidden"); 
+      emergencyScreen.classList.add("hidden");
+      homeScreen.classList.remove("hidden"); 
+    });
+
+    if (navAbbrevBtn) navAbbrevBtn.addEventListener("click", () => { 
+      setActiveTab("abbrev"); 
+      homeScreen.classList.add("hidden"); 
+      emergencyScreen.classList.add("hidden");
+      abbrevScreen.classList.remove("hidden"); 
+    });
+
+    if (sidebarAbbrevBtn) sidebarAbbrevBtn.addEventListener("click", () => { 
+      setActiveTab("abbrev"); 
+      homeScreen.classList.add("hidden"); 
+      emergencyScreen.classList.add("hidden");
+      abbrevScreen.classList.remove("hidden"); 
+    });
+
+   if (navEmergencyBtn) {
+    navEmergencyBtn.addEventListener("click", () => { 
+        setActiveTab("emergency"); 
+        homeScreen.classList.add("hidden"); 
+        abbrevScreen.classList.add("hidden"); 
+        emergencyScreen.classList.remove("hidden");
+        runEmergencyFilter("medical"); 
+      });
+    }
+
+    if (sidebarEmergencyBtn) {
+      sidebarEmergencyBtn.addEventListener("click", () => { 
+        setActiveTab("emergency"); 
+        homeScreen.classList.add("hidden"); 
+        abbrevScreen.classList.add("hidden"); 
+        emergencyScreen.classList.remove("hidden");
+      });
+    }
+
+    function runEmergencyFilter(selectedType) {
+      const filterButtons = [filterMedicalBtn, filterSecurityBtn, filterContactsBtn];
+
+      // Update chip button styles (active vs inactive states)
+      filterButtons.forEach(btn => {
+        if (!btn) return;
+        
+        // 🔴 FIX 1: Keep 'lg:hidden' appended to the contacts chip so it stays invisible on desktop
+        const desktopHideClass = (btn === filterContactsBtn) ? " lg:hidden" : "";
+
+        if ((selectedType === "medical" && btn === filterMedicalBtn) ||
+          (selectedType === "security" && btn === filterSecurityBtn) ||
+          (selectedType === "contacts" && btn === filterContactsBtn)) {
+            btn.className = "px-4 py-1.5 text-xs font-bold bg-wits-900 text-white rounded-full whitespace-nowrap transition" + desktopHideClass;
+        } 
+        else {
+          btn.className = "px-4 py-1.5 text-xs font-medium bg-white text-slate-600 border border-slate-200 rounded-full whitespace-nowrap hover:bg-slate-50 transition" + desktopHideClass;
+        }
+      });
+
+      // 2. Apply Visibility Filtering
+      // Check if user is currently on desktop layout viewport
+      const isDesktop = window.innerWidth >= 1024;
+
+      if (isDesktop) {
+        // Desktop Rules: Contacts sidebar is ALWAYS visible. Only toggle content cards.
+        contactsSidebarPanel.className = "hidden lg:block bg-white border border-slate-200/80 rounded-2xl p-5 shadow-subtle sticky top-24";
+        
+        medicalCards.forEach(card => card.classList.toggle("hidden", selectedType !== "medical"));
+        securityCards.forEach(card => card.classList.toggle("hidden", selectedType !== "security"));
+      } 
+      else {
+        // Mobile Rules: Filter everything including the contacts list panel as a card
+        if (selectedType === "medical") {
+          medicalCards.forEach(card => card.classList.remove("hidden"));
+          securityCards.forEach(card => card.classList.add("hidden"));
+          contactsSidebarPanel.className = "hidden"; // Hide completely
+        } 
+        else if (selectedType === "security") {
+          medicalCards.forEach(card => card.classList.add("hidden"));
+          securityCards.forEach(card => card.classList.remove("hidden"));
+          contactsSidebarPanel.className = "hidden"; // Hide completely
+        }
+        else if (selectedType === "contacts") {
+          medicalCards.forEach(card => card.classList.add("hidden"));
+          securityCards.forEach(card => card.classList.add("hidden"));
+          // Make the aside style look like a normal stacked element card block on mobile
+          if (contactsSidebarPanel) {
+            contactsSidebarPanel.className = "block bg-white border border-slate-200/80 rounded-2xl p-5 shadow-subtle -mt-6";
+          }        
+        }
+      }
+    }
+
+    // Attach the click listeners
+    if (filterMedicalBtn) filterMedicalBtn.addEventListener("click", () => runEmergencyFilter("medical"));
+    if (filterSecurityBtn) filterSecurityBtn.addEventListener("click", () => runEmergencyFilter("security"));
+    if (filterContactsBtn) filterContactsBtn.addEventListener("click", () => runEmergencyFilter("contacts"));
+
+    // Also reset the view states if the screen size changes dynamically live
+    window.addEventListener("resize", () => {
+      // 1. Detect which chip currently carries the active background style color
+      const isMedicalActive = filterMedicalBtn && filterMedicalBtn.classList.contains("bg-wits-900");
+      const isSecurityActive = filterSecurityBtn && filterSecurityBtn.classList.contains("bg-wits-900");
+      const isContactsActive = filterContactsBtn && filterContactsBtn.classList.contains("bg-wits-900");
+
+      // 2. Check the view layout width (1024px matches Tailwind's 'lg:' desktop breakpoint)
+      const isDesktop = window.innerWidth >= 1024;
+
+      // 3. Re-run your filter function preserving the active type state parameters
+      if (isMedicalActive) {
+        runEmergencyFilter("medical");
+      } 
+      else if (isSecurityActive) {
+        runEmergencyFilter("security");
+      } 
+      else if (isContactsActive) {
+        // If the contacts chip was chosen on mobile, but the user scales up to desktop size,
+        // default back to medical since the chip itself vanishes on desktops.
+        if (isDesktop) {
+          runEmergencyFilter("medical");
+        } 
+        else {
+          runEmergencyFilter("contacts");
+        }
+      }
+    });
+
+
+    // Initial state
+    updateDestination("oldMutual");
+  </script>
+</body>
+</html>
