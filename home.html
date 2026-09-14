@@ -577,19 +577,19 @@
               
               <!-- Filter Segment Control -->
               <div class="flex gap-2 border-b border-slate-200 pb-3 mb-4 overflow-x-auto">
-                <button class="px-4 py-1.5 text-xs font-medium bg-white text-slate-600 border border-slate-200 rounded-full whitespace-nowrap hover:bg-slate-50 transition">
+                <button id="filter-medical-btn" class="px-4 py-1.5 text-xs font-medium bg-white text-slate-600 border border-slate-200 rounded-full whitespace-nowrap hover:bg-slate-50 transition">
                   Clinics & Medical
                 </button>
-                <button class="px-4 py-1.5 text-xs font-medium bg-white text-slate-600 border border-slate-200 rounded-full whitespace-nowrap hover:bg-slate-50 transition">
+                <button id="filter-security-btn" class="px-4 py-1.5 text-xs font-medium bg-white text-slate-600 border border-slate-200 rounded-full whitespace-nowrap hover:bg-slate-50 transition">
                   Security & Protection
                 </button>
-                 <button class="px-4 py-1.5 text-xs font-bold bg-wits-900 text-white rounded-full whitespace-nowrap transition">
+                 <button id="filter-contacts-btn" class="lg:hidden px-4 py-1.5 text-xs font-bold bg-wits-900 text-white rounded-full whitespace-nowrap transition">
                   Contact Details
                 </button>
               </div>
 
               <!-- Card 1: Main Campus Control Center -->
-              <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-subtle hover:border-slate-300 transition duration-200">
+              <div data-type="security" class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-subtle hover:border-slate-300 transition duration-200">
                 <div class="flex justify-between items-start gap-4">
                   <div class="flex gap-3.5 items-start">
                     <div class="p-3 rounded-xl bg-wits-goldLight text-wits-900 shrink-0 border border-wits-gold/20">
@@ -615,7 +615,7 @@
               </div>
 
               <!-- Card 2: Campus Health Wellness Centre -->
-              <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-subtle hover:border-slate-300 transition duration-200">
+              <div data-type="medical" class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-subtle hover:border-slate-300 transition duration-200">
                 <div class="flex justify-between items-start gap-4">
                   <div class="flex gap-3.5 items-start">
                     <div class="p-3 rounded-xl bg-blue-50 text-blue-600 shrink-0 border border-blue-100">
@@ -641,7 +641,7 @@
               </div>
 
               <!-- Card 3: West Campus Security Office -->
-              <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-subtle hover:border-slate-300 transition duration-200">
+              <div data-type="security" class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-subtle hover:border-slate-300 transition duration-200">
                 <div class="flex justify-between items-start gap-4">
                   <div class="flex gap-3.5 items-start">
                     <div class="p-3 rounded-xl bg-wits-goldLight text-wits-900 shrink-0 border border-wits-gold/20">
@@ -669,7 +669,7 @@
             </div>
 
             <!-- RIGHT SIDE: Contact Panel (Takes 1 column on desktop) -->
-            <aside class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-subtle sticky top-24">
+            <aside id="emergency-contacts-sidebar" class="hidden lg:block bg-white border border-slate-200/80 rounded-2xl p-5 shadow-subtle sticky top-24">
               <!-- Panel Header -->
               <div class="border-b border-slate-100 pb-3 mb-4">
                 <h3 class="font-bold text-wits-900 text-base flex items-center gap-2">
@@ -863,6 +863,15 @@
     const sidebarAbbrevBtn = document.getElementById("sidebar-abbrev-btn");
     const sidebarEmergencyBtn = document.getElementById("sidebar-emergency-btn");
 
+    // Emergency Tab Filter Buttons & Cards
+    const filterMedicalBtn = document.getElementById("filter-medical-btn");
+    const filterSecurityBtn = document.getElementById("filter-security-btn");
+    const filterContactsBtn = document.getElementById("filter-contacts-btn");
+
+    const medicalCards = document.querySelectorAll('div[data-type="medical"]');
+    const securityCards = document.querySelectorAll('div[data-type="security"]');
+    const contactsSidebarPanel = document.getElementById("emergency-contacts-sidebar");
+    
     const abbrevSearch = document.getElementById("abbrev-search");
 
     function updateDestination(key) {
@@ -942,6 +951,7 @@
     const gpsPill = document.getElementById("gps-pill");
     const gpsText = document.getElementById("gps-text");
 
+    // Tab Switching Logic
     function setActiveTab(activeButton) {
         // Setup mobile nav match list
         const mobileTabs = [navHomeBtn, navSearchBtn, navAbbrevBtn, navEmergencyBtn];
@@ -1004,6 +1014,7 @@
         homeScreen.classList.add("hidden"); 
         abbrevScreen.classList.add("hidden"); 
         emergencyScreen.classList.remove("hidden");
+        runEmergencyFilter("medical"); 
       });
     }
 
@@ -1015,6 +1026,69 @@
         emergencyScreen.classList.remove("hidden");
       });
     }
+
+    function runEmergencyFilter(selectedType) {
+      const filterButtons = [filterMedicalBtn, filterSecurityBtn, filterContactsBtn];
+
+      // Update chip button styles (active vs inactive states)
+      filterButtons.forEach(btn => {
+        if (!btn) return;
+        
+        // 🔴 FIX 1: Keep 'lg:hidden' appended to the contacts chip so it stays invisible on desktop
+        const desktopHideClass = (btn === filterContactsBtn) ? " lg:hidden" : "";
+
+        if ((selectedType === "medical" && btn === filterMedicalBtn) ||
+          (selectedType === "security" && btn === filterSecurityBtn) ||
+          (selectedType === "contacts" && btn === filterContactsBtn)) {
+            btn.className = "px-4 py-1.5 text-xs font-bold bg-wits-900 text-white rounded-full whitespace-nowrap transition" + desktopHideClass;
+        } 
+        else {
+          btn.className = "px-4 py-1.5 text-xs font-medium bg-white text-slate-600 border border-slate-200 rounded-full whitespace-nowrap hover:bg-slate-50 transition" + desktopHideClass;
+        }
+      });
+
+      // 2. Apply Visibility Filtering
+      // Check if user is currently on desktop layout viewport
+      const isDesktop = window.innerWidth >= 1024;
+
+      if (isDesktop) {
+        // Desktop Rules: Contacts sidebar is ALWAYS visible. Only toggle content cards.
+        contactsSidebarPanel.className = "hidden lg:block bg-white border border-slate-200/80 rounded-2xl p-5 shadow-subtle sticky top-24";
+        
+        medicalCards.forEach(card => card.classList.toggle("hidden", selectedType !== "medical"));
+        securityCards.forEach(card => card.classList.toggle("hidden", selectedType !== "security"));
+      } 
+      else {
+        // Mobile Rules: Filter everything including the contacts list panel as a card
+        if (selectedType === "medical") {
+            medicalCards.forEach(card => card.classList.remove("hidden"));
+            securityCards.forEach(card => card.classList.add("hidden"));
+            contactsSidebarPanel.className = "hidden"; // Hide completely
+        } 
+        else if (selectedType === "security") {
+            medicalCards.forEach(card => card.classList.add("hidden"));
+            securityCards.forEach(card => card.classList.remove("hidden"));
+            contactsSidebarPanel.className = "hidden"; // Hide completely
+        }
+         else if (selectedType === "contacts") {
+            medicalCards.forEach(card => card.classList.add("hidden"));
+            securityCards.forEach(card => card.classList.add("hidden"));
+            // Make the aside style look like a normal stacked element card block on mobile
+            contactsSidebarPanel.className = "block bg-white border border-slate-200/80 rounded-2xl p-5 shadow-subtle";
+        }
+      }
+    }
+
+    // Attach the click listeners
+    if (filterMedicalBtn) filterMedicalBtn.addEventListener("click", () => runEmergencyFilter("medical"));
+    if (filterSecurityBtn) filterSecurityBtn.addEventListener("click", () => runEmergencyFilter("security"));
+    if (filterContactsBtn) filterContactsBtn.addEventListener("click", () => runEmergencyFilter("contacts"));
+
+    // Also reset the view states if the screen size changes dynamically live
+    window.addEventListener("resize", () => {
+      // Default back to showing medical cards on layout resizing
+      runEmergencyFilter("medical");
+    });
 
 
     // Initial state
