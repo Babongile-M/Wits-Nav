@@ -7,7 +7,7 @@ Welcome to the repository! Below is an overview of the project structure and the
 ## 📁 Repository Structure
 
 *   **`frontend/`** – Contains all the user interface (UI) code
-*   **`backend/`** – Contains the backend stuff.
+*   **`backend/`** – Contains the backend stuff. NOTE: No backend yet, but once started then create this folder and save all the backend files here. 
 
 ---
 
