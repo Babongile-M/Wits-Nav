@@ -247,26 +247,34 @@
                        class="w-full h-12 sm:h-14 bg-white border border-slate-200 rounded-xl sm:rounded-2xl pl-12 pr-4 text-sm sm:text-base outline-none shadow-subtle focus:ring-2 focus:ring-wits-900/20 focus:border-wits-700 transition">
               </label>
 
-              <button id="filter-button"
-                      type="button"
-                      class="h-12 px-3 rounded-xl bg-white border border-slate-200 shadow-subtle flex items-center justify-center gap-1.5 text-sm font-semibold text-wits-900 hover:border-wits-700 transition">
-                <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
-                <span>Filters</span>
-                <i id="filter-chevron" data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-tranform duration-200 ease-in-out"></i>
-              </button>
-
               <!-- <div id="live-search-dropdown" class="hidden absolute left-0 right-14 top-full mt-2 bg-white border border-slate-200 rounded-xl shadow-float z-50 overflow-hidden">
                 <div id="live-results-list" class="max-h-60 overflow-y-auto divide-y divide-slate-100 hide-scrollbar"></div>
               </div> -->
             </div>
 
-            <div id="filter-panel" class="hidden mt-2 p-3 bg-white border border-slate-200 rounded-xl shadow-subtle">
-              <div class="flex flex-wrap gap-2">
-                <button class="filter-chip px-3 py-2 rounded-lg bg-wits-900 text-white text-xs font-semibold" data-filter="all">All places</button>
-                <button class="filter-chip px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold" data-filter="building">Buildings</button>
-                <button class="filter-chip px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold" data-filter="venue">Venues</button>
-                <button class="filter-chip px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold" data-filter="residence">Residences</button>
-                <button class="filter-chip px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold" data-filter="entrance">Entrances</button>
+            <!-- Route Directions Card; Hidden by default -->
+            <div id="navigation-steps-panel" class="hidden mt-3 space-y-2">
+              <div class="flex justify-between items-center px-1">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Route Progress</span>
+                <button id="cancel-navigation-btn" class="text-[10px] font-bold text-rose-600 hover:text-rose-700 transition">
+                  Clear Route
+                </button>
+              </div>
+
+              <!-- Live step card -->
+              <div id="live-step-card" class="bg-blue-50 border border-blue-100 rounded-2xl p-4 shadow-subtle">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-wits-900 text-wits-gold flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="corner-up-right" class="w-5 h-5"></i>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-wits-700">Next step</p>
+                    <p id="step-instruction-text" class="text-sm font-semibold text-slate-800 mt-0.5">
+                      Head north past Senate House stairs.
+                    </p>
+                  </div>
+                  <span class="text-xs font-extrabold text-wits-900 bg-white px-2.5 py-1 rounded-lg shadow-sm">65 m</span>
+                </div>
               </div>
             </div>
           </section>
@@ -836,7 +844,6 @@
     const searchInput = document.getElementById("search-input");
     const HomefilterButton = document.getElementById("filter-button");
     const filterPanel = document.getElementById("filter-panel");
-    const filterChevron = document.getElementById("filter-chevron");
 
     const destinationTitle = document.getElementById("destination-title");
     const destinationCategory = document.getElementById("destination-category");
@@ -906,18 +913,6 @@
       } else {
         filterChevron.classList.add("rotate-180");
       }
-    });
-
-    document.querySelectorAll(".filter-chip").forEach(chip => {
-      chip.addEventListener("click", () => {
-        document.querySelectorAll(".filter-chip").forEach(item => {
-          item.classList.remove("bg-wits-900", "text-white");
-          item.classList.add("bg-slate-100", "text-slate-700");
-        });
-
-        chip.classList.remove("bg-slate-100", "text-slate-700");
-        chip.classList.add("bg-wits-900", "text-white");
-      });
     });
 
     document.querySelectorAll(".quick-access").forEach(button => {
