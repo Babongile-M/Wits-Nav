@@ -12,7 +12,7 @@ const directions = require("./directions.json");
 // Ensuring that Railway.app uses its custom port dynamically first before defaulting to port 4000 locally
 const PORT = process.env.PORT || 4000;
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`The server is running on port ${PORT}`);
 });
 
