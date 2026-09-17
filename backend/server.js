@@ -5,8 +5,11 @@ const nodes = require("./nodes.json");
 const connections = require("./connections.json");
 const directions = require("./directions.json");
 
-server.listen(4000, () => {
-    console.log("The server is running on port 4000");
+// Ensuring that Railway.app uses its custom port dynamically first before defaulting to port 4000 locally
+const PORT = process.env.PORT || 4000;
+
+server.listen(PORT, () => {
+  console.log(`The server is running on port ${PORT}`);
 });
 
 function findRoute(current, To, visited, route) {
