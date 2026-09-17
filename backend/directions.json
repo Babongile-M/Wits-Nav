@@ -1,0 +1,62 @@
+[
+    {
+     "from": "ARM Building",
+        "to": "Bridge",
+        "instruction": "Proceed from ARM Building to Bridge."
+    },
+    {
+        "from": "Bridge",
+     "to": "ARM Building",
+        "instruction": "Proceed from Bridge to ARM Building."
+    },
+    {
+    "from": "Bridge",
+     "to": "No Vehicle Emergency Path",
+    "instruction": "Proceed from Bridge to No Vehicle Emergency Path."
+    },
+    {
+        "from": "No Vehicle Emergency Path",
+        "to": "Bridge",
+        "instruction": "Proceed from No Vehicle Emergency Path to Bridge."
+    },
+    {
+        "from": "No Vehicle Emergency Path",
+      "to": "South West Engineering Building",
+        "instruction": "Proceed from No Vehicle Emergency Path to South West Engineering Building."
+    },
+    {
+    "from": "South West Engineering Building",
+        "to": "No Vehicle Emergency Path",
+    "instruction": "Proceed from South West Engineering Building to No Vehicle Emergency Path."
+    },
+    {
+    "from": "South West Engineering Building",
+  "to": "Jojo Tank",
+    "instruction": "Proceed from South West Engineering Building to Jojo Tank."
+    },
+    {
+    "from": "Jojo Tank",
+        "to": "South West Engineering Building",
+        "instruction": "Proceed from Jojo Tank to South West Engineering Building."
+    },
+    {
+        "from": "Jojo Tank",
+     "to": "Robert Sobukwe",
+        "instruction": "Proceed from Jojo Tank to Robert Sobukwe."
+    },
+    {
+        "from": "Robert Sobukwe",
+        "to": "Jojo Tank",
+        "instruction": "Proceed from Robert Sobukwe to Jojo Tank."
+    },
+    {
+        "from": "Robert Sobukwe",
+     "to": "Solomon Mahlangu",
+        "instruction": "Proceed from Robert Sobukwe to Solomon Mahlangu."
+    },
+    {
+        "from": "Solomon Mahlangu",
+        "to": "Robert Sobukwe",
+        "instruction": "Proceed from Solomon Mahlangu to Robert Sobukwe."
+    }
+]

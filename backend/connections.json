@@ -1,0 +1,27 @@
+[{
+    "alias" : "ARM Building",
+    "connection" : ["Bridge"]
+}, {
+    "alias" : "Bridge",
+    "connection" : ["ARM Building", "No Vehicle Emergency Path"]
+},
+
+{ 
+    "alias" : "No Vehicle Emergency Path",
+    "connection" : ["Bridge", "South West Engineering Building"]
+}, {
+    "alias" : "South West Engineering Building",
+    "connection" : ["No Vehicle Emergency Path", "Jojo Tank"]
+}, {
+    "alias" : "Jojo Tank",
+    "connection" : ["South West Engineering Building", "Robert Sobukwe"]
+}, 
+{ 
+    "alias" : "Robert Sobukwe",
+    "connection" : ["Jojo Tank", "Solomon Mahlangu"]
+},
+{
+    "alias" : "Solomon Mahlangu",
+    "connection" : ["Robert Sobukwe"]
+}
+]
