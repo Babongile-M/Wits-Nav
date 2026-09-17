@@ -1,6 +1,10 @@
 const pack = require("express");
 const server = pack();
 
+// ADD CORS MIDDLEWARE (Fixes the "blocked by CORS policy" error sicne we are using a live server not a local one
+const cors = require("cors");
+server.use(cors()); 
+
 const nodes = require("./nodes.json");
 const connections = require("./connections.json");
 const directions = require("./directions.json");
