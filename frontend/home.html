@@ -10,7 +10,6 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDARxKCBHasIItYpKle-abG-EG2iTgVhsw&libraries=geometry&callback=initMap"
-    async
     defer>
   </script>
   <script>
@@ -716,15 +715,10 @@
 
     // Global Google Map Instance Handles
     let map;
-    let directionsService;
-    let directionsRenderer;
-    let pendingPolyline = null;
-
-    let selectedPlace = "oldMutual";
-    let navigating = false;
-
     let userMarker = null;
     let watchId = null;
+    let activeDestination = null; // Tracks current route target dynamically
+    let activeRoutePolyline = null; // Global hnadle for drawn route map line
 
     const searchInput = document.getElementById("search-input");
     const filterPanel = document.getElementById("filter-panel");
@@ -740,6 +734,8 @@
     const navButtonText = document.getElementById("nav-btn-text");
     const liveStepCard = document.getElementById("live-step-card");
     const stepInstructionText = document.getElementById("step-instruction-text");
+    const mapDistancePill = document.getElementById("map-distance-pill");
+    const stepsPanel = document.getElementById("navigation-steps-panel");
 
     // Tab Screens
     const homeScreen = document.getElementById("home-screen");
@@ -789,13 +785,6 @@
       trackUserLocation();
       
       console.log("Google Maps loaded successfully.");
-
-      // If the backend answered before Google Maps finished loading,
-      // render the saved route now.
-      if (pendingPolyline) {
-        renderBackendPolyline(pendingPolyline);
-        pendingPolyline = null;
-      }
     }
 
     // Converts the encoded polyline returned by the Railway backend into
@@ -803,18 +792,15 @@
     // Renders OSRM path coordinates directly on the Google Map using a Polyline
     function renderBackendPolyline(pathCoordinates) {
       if (!pathCoordinates || pathCoordinates.length === 0) return;
-      if (!window.google || !google.maps || !map) {
-        pendingPolyline = pathCoordinates;
-        return;
-      }
+      if (!window.google || !google.maps || !map) return;
 
       // Clear any existing polyline line
-      if (window.activeRoutePolyline) {
-        window.activeRoutePolyline.setMap(null);
+      if (activeRoutePolyline) {
+        activeRoutePolyline.setMap(null);
       }
 
       // Create new Polyline using OSRM [{lat, lng}] array directly
-      window.activeRoutePolyline = new google.maps.Polyline({
+      activeRoutePolyline = new google.maps.Polyline({
         path: pathCoordinates,
         geodesic: true,
         strokeColor: "#ffb81c", // Official Wits Gold branding accent
@@ -822,7 +808,7 @@
         strokeWeight: 5
       });
 
-      window.activeRoutePolyline.setMap(map);
+      activeRoutePolyline.setMap(map);
 
       // Auto-center and zoom map bounds to fit the route
       const bounds = new google.maps.LatLngBounds();
@@ -846,101 +832,124 @@
             lng: position.coords.longitude
           };
 
-          // 1. Create marker if it doesn't exist yet
+          // Create marker if it doesn't exist yet
           if (!userMarker) {
             userMarker = new google.maps.Marker({
-            position: userPos,
-            map: map,
-            title: "Your Location",
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 8,
-              fillColor: "#4285F4", // Google Blue dot
-              fillOpacity: 1,
-              strokeColor: "#FFFFFF",
-              strokeWeight: 2
-            }
-          });
-         } else {
-            // 2. Move existing marker to new location
-            userMarker.setPosition(userPos);
+              position: userPos,
+              map: map,
+              title: "Your Location",
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 8,
+                fillColor: "#4285F4", // Google Blue dot Marker
+                fillOpacity: 1,
+                strokeColor: "#FFFFFF",
+                strokeWeight: 2
+              }
+            });
+          } 
+
+          // Always move the marker when a newer GPS reading arrives.
+          userMarker.setPosition(userPos);
+
+          // Center the map view to the user's live location before any destination is searched for
+          if (!activeDestination) {
+            map.setCenter(userPos);
           }
         },
         (error) => {
           console.warn("Location access denied or unavailable:", error.message);
         },
         {
-          enableHighAccuracy: true, // Use GPS instead of IP lookup
-          maximumAge: 10000,        // Accept cached position up to 10s old
-          timeout: 5000
+          enableHighAccuracy: true, // Use GPS tracking
+          maximumAge: 0,        // Do not use old cache locations
+          timeout: 10000
         }
       );
     }
 
     function updateDestination(searchInputString) {
-      if (!searchInputString) return;
+    if (!searchInputString) return;
 
-      const destination = searchInputString.trim();
-      selectedPlace = searchInputString;
+    if (!userMarker || !userMarker.getPosition()) {
+        alert("Location access required. Please enable location permissions to navigate.");
+        return;
+    }
 
-      // Build backend URL dynamically:
-      // 1. Prefer live GPS coordinates if available from userMarker
-      // 2. Fall back to "Solomon Mahlangu House" if GPS is disabled or pending
-      let fetchUrl = `${SERVER_URL}/buildings?to=${encodeURIComponent(destination)}`;
+    // Set global target text to engage continuous re-routing block inside watchPosition
+    activeDestination = searchInputString.trim();
+    
+    const lat = userMarker.getPosition().lat();
+    const lng = userMarker.getPosition().lng();
 
-      if (userMarker && userMarker.getPosition()) {
-        const lat = userMarker.getPosition().lat();
-        const lng = userMarker.getPosition().lng();
-        fetchUrl += `&userLat=${lat}&userLng=${lng}`;
-      } else {
-        const origin = "Solomon Mahlangu House";
-        fetchUrl += `&from=${encodeURIComponent(origin)}`;
+    // Trigger the initial calculation right away
+    fetchLiveRoute(lat, lng, activeDestination);
+}
+
+// Dedicated function handling API calls and map line drawing
+let routeRequestController = null;
+
+async function fetchLiveRoute(lat, lng, destination) {
+    // Append coordinates as query parameters to allow your Express app to parse them properly
+    let fetchUrl = `${SERVER_URL}/buildings?to=${encodeURIComponent(destination)}&userLat=${lat}&userLng=${lng}`;
+
+    if (routeRequestController) routeRequestController.abort();
+    routeRequestController = new AbortController();
+    const timeoutId = setTimeout(() => routeRequestController.abort(), 15000);
+
+    if (navButtonText) navButtonText.textContent = "Calculating route...";
+    if (routeLabel) routeLabel.textContent = "Calculating...";
+
+    try {
+      const response = await fetch(fetchUrl, {
+        signal: routeRequestController.signal,
+        headers: { "Accept": "application/json" }
+      });
+      const serverData = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(serverData.error || `Navigation server returned ${response.status}`);
+      }
+      if (!Array.isArray(serverData.pathCoordinates) || serverData.pathCoordinates.length < 2) {
+        throw new Error("The navigation server returned an incomplete route.");
       }
 
-      // EXECUTE GOOGLE WALKING PATH CALCULATIONS
-      // SEND REQUEST STRAIGHT TO THE SECURABLE CLOUD PROXY/SERVER
-      fetch(fetchUrl).then(response => {
-        if (!response.ok) throw new Error("Backend proxy lookup failed");
-        return response.json();
-        }).then(serverData => {
-          const stepsPanel = document.getElementById("navigation-steps-panel");
-          const stepText = document.getElementById("step-instruction-text");
+      // Update Text panels UI 
+      if (destinationTitle) destinationTitle.textContent = serverData.title;
+      if (destinationCategory) destinationCategory.textContent = "Live Tracked Campus Venue";
+      if (walkTime) walkTime.textContent = serverData.duration;
+      if (walkDistance) walkDistance.textContent = serverData.distance;
 
-          // Update UI Text Element Cards
-          if (destinationTitle) destinationTitle.textContent = serverData.title;
-          if (destinationCategory) destinationCategory.textContent = "Parsed Campus Venue";
-          if (walkTime) walkTime.textContent = serverData.duration;
-          if (walkDistance) walkDistance.textContent = serverData.distance;
-          
-          // DYNAMICALLY RE-WRITE THE FLOATING MAP LAYOUT OVERLAYS
-          if (document.getElementById("eta-text")) {
-              document.getElementById("eta-text").textContent = serverData.duration;
-          }
-          if (document.getElementById("map-distance-pill")) {
-              document.getElementById("map-distance-pill").textContent = serverData.distance;
-          }
+      // Update floating map badges UI
+      if (etaText) etaText.textContent = serverData.duration;
+      if (mapDistancePill) mapDistancePill.textContent = serverData.distance;
+      if (mapDestinationTitle) mapDestinationTitle.textContent = serverData.title;
+      if (mapDestinationMeta) mapDestinationMeta.textContent = "Walking route";
+      if (routeLabel) routeLabel.textContent = "Walking route";
+      if (navButtonText) navButtonText.textContent = "Navigation active";
 
-          // Unhide the directions list block
-          if (stepsPanel) stepsPanel.classList.remove("hidden");
-          
-          if (stepText) {
-            stepText.innerHTML = Array.isArray(serverData.directions) 
-              ? serverData.directions.join("<br>") 
-              : serverData.instruction;
+      // Unhide step container instruction blocks
+      if (stepsPanel) stepsPanel.classList.remove("hidden");
+      if (stepInstructionText) {
+        stepInstructionText.innerHTML = Array.isArray(serverData.directions)
+            ? serverData.directions.join("<br>")
+            : serverData.instruction;
           }
 
-          // RENDER MAP TRACKING VECTORS DIRECTLY OVER THE PORTAL
-          // Uses Google's geometry geometry decoder to turn the compressed proxy path string into map coordinates
-          // Passes OSRM path coordinates array directly to the map renderer
+          // Draw vector polyline on the live map canvas
           if (serverData.pathCoordinates) {
-              renderBackendPolyline(serverData.pathCoordinates);
+            renderBackendPolyline(serverData.pathCoordinates);
           }
-        })
-       .catch(err => {
-          console.error("Error connecting to server cluster:", err);
-          const stepsPanel = document.getElementById("navigation-steps-panel");
-        if (stepsPanel) stepsPanel.classList.add("hidden");
-      });
+    } catch (err) {
+      if (err.name === "AbortError") {
+        if (navButtonText) navButtonText.textContent = "Route request timed out";
+      } else {
+        if (navButtonText) navButtonText.textContent = "Route unavailable";
+      }
+      if (routeLabel) routeLabel.textContent = err.name === "AbortError" ? "Request timed out" : err.message;
+      console.error("Route request failed:", err);
+    } finally {
+      clearTimeout(timeoutId);
+    }
     }
 
     document.querySelectorAll(".quick-access").forEach(button => {
@@ -1053,8 +1062,20 @@
 
     if (cancelNavBtn) {
       cancelNavBtn.addEventListener("click", () => {
-        const stepsPanel = document.getElementById("navigation-steps-panel");
+        activeDestination = null;
+
+        if (activeRoutePolyline) {
+          activeRoutePolyline.setMap(null);
+          activeRoutePolyline = null;
+        }
+
         if (stepsPanel) stepsPanel.classList.add("hidden");
+        searchInput.value = "";
+
+        if (userMarker) {
+          map.setCenter(userMarker.getPosition());
+          map.setZoom(16); 
+        }
       });
     }
 
@@ -1145,10 +1166,6 @@
         }
       }
     });
-
-
-    // Initial state
-    updateDestination("matrix");
 
     // ==========================================
     // ABBREVIATIONS SCREEN REAL-TIME FILTER

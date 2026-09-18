@@ -1,87 +1,138 @@
 require("dotenv").config(); // Load the .env file safely to use secret variables
-const pack = require("express");
+const express = require("express");
 const cors = require("cors"); // ADD CORS MIDDLEWARE (Fixes the "blocked by CORS policy" error since we are using a live server not a local one)
 const axios = require("axios"); // Added to send HTTP requests to OSRM
 
-const server = pack();
-server.use(cors()); 
-
-const nodes = require("./nodes.json");
-const connections = require("./connections.json");
-const directions = require("./directions.json");
-
+const server = express();
 // Ensuring that Railway.app uses its custom port dynamically first before defaulting to port 8080 locally
 const PORT = process.env.PORT || 8080;
 
-// Exact Wits Campus coordinates { lat, lng } replacing text street addresses
-const witsCoordinates = {
-    "wss": { lat: -26.1924, lng: 28.0268 },         // Wits Science Stadium
-    "smh": { lat: -26.1929, lng: 28.0306 },         // Solomon Mahlangu House
-    "fnb": { lat: -26.1899, lng: 28.0242 },         // FNB Building
-    "cm":  { lat: -26.1912, lng: 28.0315 },         // Chamber of Mines Building
-    "sh":  { lat: -26.1929, lng: 28.0306 },         // Senate House / SMH
-    "cb":  { lat: -26.1918, lng: 28.0300 },         // Central Block
-    "matrix": { lat: -26.1908, lng: 28.0285 },     // The Matrix Student Centre
-    "oldmutual": { lat: -26.1915, lng: 28.0305 },   // Old Mutual Building
+server.use(cors()); 
 
-    // Full Names / Common Variants mapped back to coordinates
-    "wits science stadium": { lat: -26.1924, lng: 28.0268 },
-    "solomon mahlangu house": { lat: -26.1929, lng: 28.0306 },
-    "fnb building": { lat: -26.1899, lng: 28.0242 },
-    "chamber of mines": { lat: -26.1912, lng: 28.0315 },
-    "chamber of mines building": { lat: -26.1912, lng: 28.0315 },
-    "senate house": { lat: -26.1929, lng: 28.0306 },
-    "central block": { lat: -26.1918, lng: 28.0300 },
-    "the matrix": { lat: -26.1908, lng: 28.0285 },
-    "old mutual": { lat: -26.1915, lng: 28.0305 },
-    "old mutual building": { lat: -26.1915, lng: 28.0305 }
-};
+const nodes = require("./nodes.json"); // Get pre-defined venues and their locations
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`The server is running on port ${PORT}`);
 });
 
+// Make searches igbore capital letter and extra spaces
+function normalise(value) {
+    return typeof value === "string" ? value.trim().toLowerCase().replace(/\s+/g, " ") : "";
+}
+
+// Build a lookup tbles from nodes.json
+const locationLookup = new Map();
+
+for (const node of nodes) {
+    const searchNmes = [
+        node.id,
+        node.name,
+        ...(node.aliases || [])
+    ];
+
+    for (const name of searchNmes) {
+        const key = normalise(name);
+        if (!key) continue;
+
+        const existing = locationLookup.get(key);
+
+        if (existing && existing.id !== node.id) {
+            throw new Error("Duplicate location alias: ${name}");
+        }
+
+        locationLookup.set(key, node);
+    }
+}
+
+// Find user searched location/venue
+function findLocation(value) {
+    return locationLookup.get(normalise(value)) || null;
+}
+
+function hasCoordinates(location) {
+    return Boolean(
+        location &&
+        Number.isFinite(location.lat) &&
+        Number.isFinite(location.lng) &&
+        location.lat >= -90 &&
+        location.lat <= 90 &&
+        location.lng >= -180 &&
+        location.lng <= 180
+    );
+}
+
 server.get("/buildings", async (req, res) => {
-    const { from, to, userLat, userLng } = req.query;
+    const {from, to, userLat, userLng} = req.query;
 
-    // Must have a destination 'to' parameter
-    if (!to) {
-        return res.status(400).json({ error: "Missing destination boundary ('to' parameter required)." });
+    if (!normalise(to)) {
+        return res.status(400).json({
+            error: "Please enter a destination."
+        });
     }
 
-    let startLocation = null;
+    const endLocation = findLocation(to);
 
-    // Check if user sent live GPS coordinates
-    if (userLat && userLng) {
-        const parsedLat = parseFloat(userLat);
-        const parsedLng = parseFloat(userLng);
+    if (!endLocation) {
+        return res.status(404).json({
+            error: "Destination not found. Try WSS, SMH, FNB, CM or Matrix."
+        });
+    }
 
-        if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
-            startLocation = { lat: parsedLat, lng: parsedLng };
+    if (!hasCoordinates(endLocation)) {
+        return res.status(400).json({
+            error: `${endLocation.name} is listed, but its coordinates have not been added yet.`
+        });
+    }
+
+    let startLocation;
+
+    // If either GPS coordinate is supplied, require both to be valid.
+    if (userLat !== undefined || userLng !== undefined) {
+        const validInput =
+            typeof userLat === "string" &&
+            typeof userLng === "string" &&
+            userLat.trim() !== "" &&
+            userLng.trim() !== "";
+
+        if (!validInput) {
+            return res.status(400).json({
+                error: "Both GPS latitude and longitude are required."
+            });
         }
-    }
 
-    // If no live GPS coordinates provided, fall back to lookup by 'from' acronym
-    if (!startLocation) {
-        if (!from) {
-            return res.status(400).json({ error: "Missing origin boundary. Provide 'from' or 'userLat' & 'userLng'." });
+        startLocation = {
+            lat: Number(userLat),
+            lng: Number(userLng)
+        };
+
+        if (!hasCoordinates(startLocation)) {
+            return res.status(400).json({
+                error: "Your GPS coordinates are invalid. Please try again."
+            });
         }
-        const cleanFrom = from.toLowerCase().trim();
-        startLocation = witsCoordinates[cleanFrom];
-    }
+    } else {
+        startLocation = findLocation(from);
 
-    const cleanTo = to.toLowerCase().trim();
-    const endLocation = witsCoordinates[cleanTo];
+        if (!startLocation) {
+            return res.status(400).json({
+                error: "Provide your live location or a recognised starting building."
+            });
+        }
 
-    if (!startLocation || !endLocation) {
-        return res.status(400).json({ error: "One or both campus locations were not found." });
+        if (!hasCoordinates(startLocation)) {
+            return res.status(400).json({
+                error: `${startLocation.name} does not have coordinates yet.`
+            });
+        }
     }
 
     try {
         // Query OSRM walking engine directly (Format: lng,lat;lng,lat)
         const osrmUrl = `https://router.project-osrm.org/route/v1/foot/${startLocation.lng},${startLocation.lat};${endLocation.lng},${endLocation.lat}?overview=full&steps=true&geometries=geojson`;
         
-        const osrmResponse = await axios.get(osrmUrl);
+        const osrmResponse = await axios.get(osrmUrl, {
+            timeout: 12000
+        });
         const data = osrmResponse.data;
 
         if (!data.routes || data.routes.length === 0) {
@@ -104,7 +155,7 @@ server.get("/buildings", async (req, res) => {
 
         // Respond back to frontend with payload
         res.json({
-            title: to.toUpperCase(),
+            title: endLocation.name,
             duration: `${Math.round(route.duration / 60)} mins`,
             distance: `${Math.round(route.distance)} m`,
             directions: customInstructionsList,

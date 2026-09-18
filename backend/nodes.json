@@ -1,16 +1,111 @@
-        [{
-        "alias" : "ARM Building"
-    },{
-        "alias" : "South West Engineering Building"
-    },{
-        "alias" : "Robert Sobukwe"
-    }, {
-        "alias" : "Solomon Mahlangu"
-    }, {
-        "alias" : "Bridge"
-    },{
-        "alias" : "No Vehicle Emergency Path"
-    }, {
-        "alias" : "Jojo Tank"
-    }]
-       
+[
+  {
+    "id": "wss",
+    "name": "Wits Science Stadium",
+    "aliases": ["wss", "wits science stadium"],
+    "lat": -26.1924,
+    "lng": 28.0268
+  },
+  {
+    "id": "smh",
+    "name": "Solomon Mahlangu House",
+    "aliases": [
+      "smh",
+      "sh",
+      "solomon mahlangu",
+      "solomon mahlangu house",
+      "senate house"
+    ],
+    "lat": -26.1929,
+    "lng": 28.0306
+  },
+  {
+    "id": "fnb",
+    "name": "FNB Building",
+    "aliases": ["fnb", "fnb building"],
+    "lat": -26.1899,
+    "lng": 28.0242
+  },
+  {
+    "id": "cm",
+    "name": "Chamber of Mines Building",
+    "aliases": [
+      "cm",
+      "chamber of mines",
+      "chamber of mines building"
+    ],
+    "lat": -26.1912,
+    "lng": 28.0315
+  },
+  {
+    "id": "cb",
+    "name": "Central Block",
+    "aliases": ["cb", "central block"],
+    "lat": -26.1918,
+    "lng": 28.0300
+  },
+  {
+    "id": "matrix",
+    "name": "The Matrix Student Centre",
+    "aliases": [
+      "matrix",
+      "the matrix",
+      "matrix student centre",
+      "the matrix student centre"
+    ],
+    "lat": -26.1908,
+    "lng": 28.0285
+  },
+  {
+    "id": "oldmutual",
+    "name": "Old Mutual Building",
+    "aliases": ["oldmutual", "old mutual", "old mutual building"],
+    "lat": -26.1915,
+    "lng": 28.0305
+  },
+  {
+    "id": "arm",
+    "name": "ARM Building",
+    "aliases": ["arm", "arm building"],
+    "lat": null,
+    "lng": null
+  },
+  {
+    "id": "south-west-engineering",
+    "name": "South West Engineering Building",
+    "aliases": [
+      "south west engineering",
+      "south west engineering building"
+    ],
+    "lat": null,
+    "lng": null
+  },
+  {
+    "id": "robert-sobukwe",
+    "name": "Robert Sobukwe",
+    "aliases": ["robert sobukwe", "robert sobukwe building"],
+    "lat": null,
+    "lng": null
+  },
+  {
+    "id": "bridge",
+    "name": "Bridge",
+    "aliases": ["bridge"],
+    "lat": null,
+    "lng": null
+  },
+  {
+    "id": "emergency-path",
+    "name": "No Vehicle Emergency Path",
+    "aliases": ["no vehicle emergency path"],
+    "lat": null,
+    "lng": null
+  },
+  {
+    "id": "jojo-tank",
+    "name": "Jojo Tank",
+    "aliases": ["jojo tank", "jojo"],
+    "lat": null,
+    "lng": null
+  }
+]
