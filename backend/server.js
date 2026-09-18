@@ -1,54 +1,24 @@
-require("dotenv").config(); // Load the .env file safely to use secret variables
+require("dotenv").config();
+
 const express = require("express");
-const cors = require("cors"); // ADD CORS MIDDLEWARE (Fixes the "blocked by CORS policy" error since we are using a live server not a local one)
-const axios = require("axios"); // Added to send HTTP requests to OSRM
+const cors = require("cors");
+const axios = require("axios");
+
+const nodes = require("./nodes.json");
 
 const server = express();
-// Ensuring that Railway.app uses its custom port dynamically first before defaulting to port 8080 locally
 const PORT = process.env.PORT || 8080;
 
-server.use(cors()); 
+server.use(cors());
 
-const nodes = require("./nodes.json"); // Get pre-defined venues and their locations
-
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`The server is running on port ${PORT}`);
-});
-
-// Make searches igbore capital letter and extra spaces
+// Make searches ignore capital letters and extra spaces.
 function normalise(value) {
-    return typeof value === "string" ? value.trim().toLowerCase().replace(/\s+/g, " ") : "";
+    return typeof value === "string"
+        ? value.trim().toLowerCase().replace(/\s+/g, " ")
+        : "";
 }
 
-// Build a lookup tbles from nodes.json
-const locationLookup = new Map();
-
-for (const node of nodes) {
-    const searchNmes = [
-        node.id,
-        node.name,
-        ...(node.aliases || [])
-    ];
-
-    for (const name of searchNmes) {
-        const key = normalise(name);
-        if (!key) continue;
-
-        const existing = locationLookup.get(key);
-
-        if (existing && existing.id !== node.id) {
-            throw new Error(`Duplicate location alias: ${name}`);
-        }
-
-        locationLookup.set(key, node);
-    }
-}
-
-// Find user searched location/venue
-function findLocation(value) {
-    return locationLookup.get(normalise(value)) || null;
-}
-
+// Check latitude and longitude.
 function hasCoordinates(location) {
     return Boolean(
         location &&
@@ -61,7 +31,64 @@ function hasCoordinates(location) {
     );
 }
 
-// Search suggestions and map locations.
+// Build the searchable location lookup.
+const locationLookup = new Map();
+
+for (const node of nodes) {
+    const searchNames = [
+        node.id,
+        node.name,
+        ...(node.aliases || [])
+    ];
+
+    for (const name of searchNames) {
+        const key = normalise(name);
+
+        if (!key) continue;
+
+        const existing = locationLookup.get(key);
+
+        if (existing && existing !== node) {
+            throw new Error(`Duplicate location alias: ${name}`);
+        }
+
+        locationLookup.set(key, node);
+    }
+}
+
+function findLocation(value) {
+    return locationLookup.get(normalise(value)) || null;
+}
+
+// Convert our coordinates into Google's waypoint format.
+function googleWaypoint(location) {
+    return {
+        location: {
+            latLng: {
+                latitude: location.lat,
+                longitude: location.lng
+            }
+        }
+    };
+}
+
+// Convert a Google step endpoint into our frontend format.
+function stepTarget(step) {
+    const point = step.endLocation?.latLng;
+
+    const target = {
+        lat: point?.latitude,
+        lng: point?.longitude
+    };
+
+    if (!hasCoordinates(target)) {
+        throw new Error("Google returned an invalid step endpoint.");
+    }
+
+    return target;
+}
+
+// Return searchable locations and category marker coordinates.
 server.get("/locations", (req, res) => {
     const locations = nodes
         .filter(hasCoordinates)
@@ -77,8 +104,9 @@ server.get("/locations", (req, res) => {
     res.json(locations);
 });
 
+// Calculate a walking route.
 server.get("/buildings", async (req, res) => {
-    const {from, to, userLat, userLng} = req.query;
+    const { from, to, userLat, userLng } = req.query;
 
     if (!normalise(to)) {
         return res.status(400).json({
@@ -103,7 +131,7 @@ server.get("/buildings", async (req, res) => {
 
     let startLocation;
 
-    // If either GPS coordinate is supplied, require both to be valid.
+    // If either GPS coordinate is supplied, require both.
     if (userLat !== undefined || userLng !== undefined) {
         const validInput =
             typeof userLat === "string" &&
@@ -128,6 +156,7 @@ server.get("/buildings", async (req, res) => {
             });
         }
     } else {
+        // Alternatively, start from a saved venue.
         startLocation = findLocation(from);
 
         if (!startLocation) {
@@ -143,109 +172,212 @@ server.get("/buildings", async (req, res) => {
         }
     }
 
-    try {
-        // Query OSRM walking engine directly (Format: lng,lat;lng,lat)
-        const osrmUrl = `https://router.project-osrm.org/route/v1/foot/${startLocation.lng},${startLocation.lat};${endLocation.lng},${endLocation.lat}?overview=full&steps=true&geometries=geojson`;
-        
-        const osrmResponse = await axios.get(osrmUrl, {
-            timeout: 12000
-        });
-        const data = osrmResponse.data;
+    const apiKey = process.env.GOOGLE_ROUTES_API_KEY?.trim();
 
-        if (!data.routes || data.routes.length === 0) {
-            return res.status(400).json({ error: "OSRM Route could not be calculated." });
+    if (!apiKey) {
+        return res.status(503).json({
+            code: "ROUTING_NOT_CONFIGURED",
+            error: "Walking navigation is not configured yet."
+        });
+    }
+
+    try {
+        const googleResponse = await axios.post(
+            "https://routes.googleapis.com/directions/v2:computeRoutes",
+            {
+                origin: googleWaypoint(startLocation),
+                destination: googleWaypoint(endLocation),
+
+                travelMode: "WALK",
+                languageCode: "en",
+                units: "METRIC",
+
+                polylineQuality: "HIGH_QUALITY",
+                polylineEncoding: "GEO_JSON_LINESTRING"
+            },
+            {
+                timeout: 12000,
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": apiKey,
+                    "X-Goog-FieldMask": [
+                        "routes.distanceMeters",
+                        "routes.duration",
+                        "routes.polyline.geoJsonLinestring",
+                        "routes.legs.steps.distanceMeters",
+                        "routes.legs.steps.endLocation",
+                        "routes.legs.steps.navigationInstruction",
+                        "routes.warnings"
+                    ].join(",")
+                }
+            }
+        );
+
+        const route = googleResponse.data.routes?.[0];
+
+        if (!route) {
+            return res.status(404).json({
+                code: "ROUTE_NOT_FOUND",
+                error: "No walking route was found between these locations."
+            });
         }
 
-        const route = data.routes[0];
+        // Google GeoJSON uses [longitude, latitude].
+        const coordinates =
+            route.polyline?.geoJsonLinestring?.coordinates;
 
-        // Convert OSRM GeoJSON [lng, lat] coordinate points to Google Maps LatLng [{ lat, lng }]
-        const pathCoordinates = route.geometry.coordinates.map(coord => ({
-            lat: coord[1],
-            lng: coord[0]
+        if (
+            !Array.isArray(coordinates) ||
+            coordinates.length < 2 ||
+            !coordinates.every(point =>
+                Array.isArray(point) && point.length >= 2
+            )
+        ) {
+            throw new Error("Google returned incomplete route geometry.");
+        }
+
+        const pathCoordinates = coordinates.map(point => ({
+            lat: point[1],
+            lng: point[0]
         }));
 
-        const rawSteps = route.legs[0].steps;
-
-        function describeAction(maneuver) {
-            if (maneuver.type === "depart") {
-                return "Follow the highlighted path";
-            }
-
-            if (maneuver.type === "arrive") {
-                return "You have reached the mapped destination";
-            }
-
-            if (maneuver.type === "roundabout" || maneuver.type === "rotary") {
-                return maneuver.exit
-                     ? `At the roundabout, take exit ${maneuver.exit}`
-                    : "Follow the highlighted route around the roundabout";
-            }
-
-            const actions = {
-                "left": "Turn left",
-                "right": "Turn right",
-                "slight left": "Bear left",
-                "slight right": "Bear right",
-                "sharp left": "Turn sharply left",
-                "sharp right": "Turn sharply right",
-                "straight": "Continue straight",
-                "uturn": "Turn around"
-            }
-
-            return actions[maneuver.modifier] || "Continue along the highlighted path";
+        if (!pathCoordinates.every(hasCoordinates)) {
+            throw new Error("Google returned invalid route coordinates.");
         }
 
-        const navigationSteps = rawSteps.map((step, index) => {
-        const nextStep = rawSteps[index + 1];
+        const rawSteps = (route.legs || [])
+            .flatMap(leg => leg.steps || []);
 
-        // A maneuver happens at the START of its step.
-        // Finish the current step at the NEXT maneuver.
-        const targetCoordinates = nextStep
-            ? nextStep.maneuver.location
-            : step.maneuver.location;
+        // Use a separate final arrival step for our GPS step tracker.
+        const walkingSteps = rawSteps.filter(step =>
+            step.navigationInstruction?.maneuver !== "DESTINATION"
+        );
 
-        const isArrival = step.maneuver.type === "arrive";
-        const distance = Math.round(step.distance);
-        const action = describeAction(step.maneuver);
+        if (walkingSteps.length === 0) {
+            throw new Error("Google returned no walking instructions.");
+        }
 
-        return {
-            instruction: isArrival
-                ? action
-                : `${action}, then continue for about ${distance} metres.`,
+        const navigationSteps = walkingSteps.map(step => {
+            const distance = step.distanceMeters ?? 0;
 
-            distanceMeters: distance,
+            if (!Number.isFinite(distance) || distance < 0) {
+                throw new Error("Google returned an invalid step distance.");
+            }
 
-            target: {
-                lat: targetCoordinates[1],
-                lng: targetCoordinates[0]
-            },
+            const instruction =
+                step.navigationInstruction?.instructions?.trim();
 
-            isArrival
-        };
-    });
+            return {
+                instruction:
+                    instruction ||
+                    `Follow the highlighted path for about ${Math.round(distance)} metres.`,
 
-    // Respond back to frontend with payload
-    res.json({
-    title: endLocation.name || to.toUpperCase(),
+                distanceMeters: Math.round(distance),
 
-    duration: `${Math.max(
-        1,
-        Math.ceil(route.duration / 60)
-    )} mins`,
+                // Advance after reaching the END of this walking step.
+                target: stepTarget(step),
 
-    distance: `${Math.round(route.distance)} m`,
+                isArrival: false
+            };
+        });
 
-    // Retained for compatibility with the existing interface.
-    directions: navigationSteps.map(step => step.instruction),
+        // Appending arrival prevents the frontend from declaring arrival
+        // when it first begins the final walking segment.
+        const lastWalkingStep =
+            navigationSteps[navigationSteps.length - 1];
 
-    // New: instructions with GPS targets.
-    navigationSteps,
+        navigationSteps.push({
+            instruction: "You have reached the end of the mapped walking route.",
+            distanceMeters: 0,
+            target: { ...lastWalkingStep.target },
+            isArrival: true
+        });
 
-    pathCoordinates
-});
+        // Google duration is a string such as "245s".
+        const durationSeconds = Number.parseFloat(route.duration);
+        const distanceMeters = route.distanceMeters ?? 0;
+
+        if (
+            !Number.isFinite(durationSeconds) ||
+            durationSeconds < 0 ||
+            !Number.isFinite(distanceMeters) ||
+            distanceMeters < 0
+        ) {
+            throw new Error("Google returned invalid route totals.");
+        }
+
+        const walkingNotice =
+            "Walking directions are in beta and may be missing sidewalks " +
+            "or pedestrian paths. Use caution and follow campus signs.";
+
+        const warnings = [
+            walkingNotice,
+            ...(Array.isArray(route.warnings) ? route.warnings : [])
+        ].filter(value =>
+            typeof value === "string" && value.trim() !== ""
+        );
+
+        return res.json({
+            title: endLocation.name || to.trim(),
+
+            duration:
+                `${Math.max(1, Math.ceil(durationSeconds / 60))} mins`,
+
+            distance: `${Math.round(distanceMeters)} m`,
+
+            // Keep compatibility with the existing interface.
+            directions: navigationSteps.map(step => step.instruction),
+
+            // Existing GPS-based, one-at-a-time instruction format.
+            navigationSteps,
+
+            // Existing Google Maps polyline format.
+            pathCoordinates,
+
+            warnings: [...new Set(warnings)]
+        });
 
     } catch (error) {
-        console.error("Backend Server Error Details:", error.response ? error.response.data : error.message);
-        res.status(500).json({ error: "Internal navigation engine communication failure" });
+        const upstreamStatus = error.response?.status;
+        const googleError = error.response?.data?.error;
+
+        // Do not log the complete Axios error: it contains API headers.
+        console.error("Google Routes request failed:", {
+            httpStatus: upstreamStatus,
+            code: googleError?.status || error.code || "INVALID_RESPONSE"
+        });
+
+        if (
+            error.code === "ECONNABORTED" ||
+            error.code === "ETIMEDOUT"
+        ) {
+            return res.status(504).json({
+                code: "ROUTING_TIMEOUT",
+                error: "Walking directions took too long. Please try again."
+            });
+        }
+
+        if (upstreamStatus === 401 || upstreamStatus === 403) {
+            return res.status(503).json({
+                code: "ROUTING_CONFIGURATION_ERROR",
+                error: "Walking navigation is unavailable because of a server configuration problem."
+            });
+        }
+
+        if (upstreamStatus === 429) {
+            return res.status(503).json({
+                code: "ROUTING_LIMIT_REACHED",
+                error: "Walking navigation is temporarily unavailable. Please try again later."
+            });
+        }
+
+        return res.status(502).json({
+            code: "ROUTING_FAILED",
+            error: "Walking directions could not be loaded. Please try again."
+        });
     }
+});
+
+server.listen(PORT, "0.0.0.0", () => {
+    console.log(`The server is running on port ${PORT}`);
 });
