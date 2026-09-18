@@ -42,8 +42,43 @@ server.get("/buildings", async (req, res) => {
         "cm": "Chamber of Mines Building, Wits University, Johannesburg",
         "sh": "Senate House, Wits University, Johannesburg",
         "cb": "Central Block, Wits University, Johannesburg",
-        "matrix": "The Matrix Student Centre, Wits University, Johannesburg"
+        "matrix": "The Matrix Student Centre, Wits University, Johannesburg",
+        "oldmutual": "Old Mutual Building, Wits University, Johannesburg",
+
+        // Full Names / Common Variants mapped back to precise addresses
+        "wits science stadium": "Wits Science Stadium, Braamfontein, Johannesburg",
+        "solomon mahlangu house": "Solomon Mahlangu House, Wits University, Johannesburg",
+        "fnb building": "FNB Building, Wits West Campus, Johannesburg",
+        "chamber of mines": "Chamber of Mines Building, Wits University, Johannesburg",
+        "chamber of mines building": "Chamber of Mines Building, Wits University, Johannesburg",
+        "senate house": "Senate House, Wits University, Johannesburg",
+        "central block": "Central Block, Wits University, Johannesburg",
+        "the matrix": "The Matrix Student Centre, Wits University, Johannesburg",
+        "old mutual": "Old Mutual Building, Wits University, Johannesburg",
+        "old mutual building": "Old Mutual Building, Wits University, Johannesburg"
     };
+
+    // Helper function to resolve term whether it's an acronym or full name
+    function resolveCampusAddress(inputTerm) {
+        if (!inputTerm) return "";
+        
+        // Strip spaces, punctuation, and convert to lowercase for key comparison
+        const cleanedTerm = inputTerm.toLowerCase().trim();
+        const strippedTerm = cleanedTerm.replace(/[^a-z0-9]/g, "");
+
+        // Check direct key match (e.g. "wss" or "wits science stadium")
+        if (campusLocations[cleanedTerm]) {
+            return campusLocations[cleanedTerm];
+        }
+
+        // Check stripped key match (e.g. "oldmutual" vs "old mutual")
+        if (campusLocations[strippedTerm]) {
+            return campusLocations[strippedTerm];
+        }
+
+        // Fallback: If user passes a custom text string, append campus bounds safely for Google Maps geocoding
+        return `${inputTerm}, Wits University, Johannesburg`;
+    }
 
     // Clean text strings and map matching address bounds, fallback to search text if not in dictionary
     const originAddress = witsAcronymsLookup[from.toLowerCase().trim()] || `${from}, Wits University, Johannesburg`;
@@ -56,7 +91,10 @@ server.get("/buildings", async (req, res) => {
         const data = googleResponse.data;
 
         if (data.status !== "OK") {
-            return res.status(400).json({ error: `Google API Error: ${data.status}` });
+            return res.status(400).json({ 
+                error: `Google API Error: ${data.status}`,
+                googleMessage: data.error_message || "Route could not be calculated."
+            });
         }
 
         const leg = data.routes[0].legs[0];

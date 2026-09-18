@@ -720,17 +720,6 @@
     let directionsRenderer;
     let pendingPolyline = null;
 
-    // Wits Building Acronym Lookup Table
-    const witsAcronymsLookup = {
-      "wss": "Wits Science Stadium, Braamfontein, Johannesburg",
-      "smh": "Solomon Mahlangu House, Wits University, Johannesburg",
-      "fnb": "FNB Building, Wits West Campus, Johannesburg",
-      "cm": "Chamber of Mines Building, Wits University, Johannesburg",
-      "sh": "Senate House, Wits University, Johannesburg",
-      "cb": "Central Block, Wits University, Johannesburg",
-      "matrix": "The Matrix Student Centre, Wits University, Johannesburg"
-    };
-
     let selectedPlace = "oldMutual";
     let navigating = false;
 
@@ -1023,11 +1012,11 @@
     }
 
     if (cancelNavBtn) {
-    cancelNavBtn.addEventListener("click", () => {
+      cancelNavBtn.addEventListener("click", () => {
         const stepsPanel = document.getElementById("navigation-steps-panel");
         if (stepsPanel) stepsPanel.classList.add("hidden");
-    });
-}
+      });
+    }
 
     function runEmergencyFilter(selectedType) {
       const filterButtons = [filterMedicalBtn, filterSecurityBtn, filterContactsBtn];
@@ -1119,7 +1108,7 @@
 
 
     // Initial state
-    updateDestination("oldMutual");
+    updateDestination("matrix");
 
     // ==========================================
     // ABBREVIATIONS SCREEN REAL-TIME FILTER
