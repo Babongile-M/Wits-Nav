@@ -1,32 +1,19 @@
-require("dotenv").config();
-
+require("dotenv").config(); // Load backend secrets from .env locally.
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
-
 const nodes = require("./nodes.json");
 
 const server = express();
 const PORT = process.env.PORT || 8080;
 
+const API_KEY = (
+    process.env.GOOGLE_ROUTES_API_KEY ||
+    process.env.GOOGLE_ROUTE_API ||
+    ""
+).trim();
+
 server.use(cors());
-
-
-// ======================================================
-// ROUTING SETTINGS
-// ======================================================
-
-// If Google's walking route finishes within 3 metres
-// of the saved entrance, we treat it as effectively there.
-const FINAL_APPROACH_MIN_METRES = 3;
-
-// We only draw a straight final line to the entrance when
-// Google's snapped endpoint is reasonably close.
-//
-// This prevents the map from drawing a fake line through
-// buildings/walls if Google's pedestrian data is poor.
-const MAX_DRAWN_FINAL_APPROACH_METRES = 40;
-
 
 // ======================================================
 // GENERAL HELPERS
@@ -34,1176 +21,604 @@ const MAX_DRAWN_FINAL_APPROACH_METRES = 40;
 
 function normalise(value) {
     return typeof value === "string"
-        ? value
-            .trim()
-            .toLowerCase()
-            .replace(/\s+/g, " ")
+        ? value.trim().toLowerCase().replace(/\s+/g, " ")
         : "";
 }
 
-
-function hasCoordinates(location) {
+function hasCoordinates(point) {
     return Boolean(
-        location &&
-        Number.isFinite(location.lat) &&
-        Number.isFinite(location.lng) &&
-        location.lat >= -90 &&
-        location.lat <= 90 &&
-        location.lng >= -180 &&
-        location.lng <= 180
+        point &&
+        Number.isFinite(point.lat) &&
+        Number.isFinite(point.lng) &&
+        Math.abs(point.lat) <= 90 &&
+        Math.abs(point.lng) <= 180
     );
 }
 
-
-// Calculate straight-line GPS distance between two points.
 function distanceInMetres(a, b) {
-    const toRadians =
-        degrees =>
-            degrees * Math.PI / 180;
-
-    const earthRadius =
-        6371000;
-
-    const latitudeDifference =
-        toRadians(
-            b.lat - a.lat
-        );
-
-    const longitudeDifference =
-        toRadians(
-            b.lng - a.lng
-        );
+    const rad = value => value * Math.PI / 180;
 
     const h =
-        Math.sin(
-            latitudeDifference / 2
-        ) ** 2 +
+        Math.sin(rad(b.lat - a.lat) / 2) ** 2 +
+        Math.cos(rad(a.lat)) *
+        Math.cos(rad(b.lat)) *
+        Math.sin(rad(b.lng - a.lng) / 2) ** 2;
 
-        Math.cos(
-            toRadians(a.lat)
-        ) *
-
-        Math.cos(
-            toRadians(b.lat)
-        ) *
-
-        Math.sin(
-            longitudeDifference / 2
-        ) ** 2;
-
-    return (
-        2 *
-        earthRadius *
-        Math.asin(
-            Math.sqrt(
-                Math.min(
-                    1,
-                    Math.max(
-                        0,
-                        h
-                    )
-                )
-            )
-        )
+    return 12742000 * Math.asin(
+        Math.sqrt(Math.min(1, Math.max(0, h)))
     );
 }
 
-
-// ======================================================
-// EXACT DESTINATION / ENTRANCE
-// ======================================================
-
-// Prefer:
-//
-// "entrance": {
-//     "lat": ...,
-//     "lng": ...
-// }
-//
-// If entrance is not present, use the existing
-// building lat/lng.
-//
-// This means your old nodes.json still works.
-function destinationPoint(node) {
-
-    if (
-        hasCoordinates(
-            node?.entrance
-        )
-    ) {
-        return {
-            lat:
-                node.entrance.lat,
-
-            lng:
-                node.entrance.lng
-        };
-    }
-
-
-    if (
-        hasCoordinates(node)
-    ) {
-        return {
-            lat:
-                node.lat,
-
-            lng:
-                node.lng
-        };
-    }
-
-
-    return null;
+function verifiedEntrance(node) {
+    return (
+        node.entranceVerified === true &&
+        hasCoordinates(node.entrance)
+    );
 }
 
+function destinationPoint(node) {
+    return verifiedEntrance(node)
+        ? node.entrance
+        : node;
+}
+
+function coordinateWaypoint(point) {
+    return {
+        location: {
+            latLng: {
+                latitude: point.lat,
+                longitude: point.lng
+            }
+        }
+    };
+}
+
+function nodeWaypoint(node) {
+    // Use a checked pedestrian entrance first.
+    if (verifiedEntrance(node)) {
+        return coordinateWaypoint(node.entrance);
+    }
+
+    // Only use a Google Place ID after checking that it
+    // belongs to this exact venue.
+    //
+    // The old generator's results are NOT automatically trusted.
+    if (
+        node.placeIdVerified === true &&
+        node.googlePlaceId
+    ) {
+        return {
+            placeId: node.googlePlaceId
+        };
+    }
+
+    // Existing nodes.json still works.
+    return coordinateWaypoint(node);
+}
+
+function googlePoint(location) {
+    const point = {
+        lat: location?.latLng?.latitude,
+        lng: location?.latLng?.longitude
+    };
+
+    if (!hasCoordinates(point)) {
+        throw new Error("Invalid Google location.");
+    }
+
+    return point;
+}
+
+function googlePath(polyline) {
+    const coordinates =
+        polyline?.geoJsonLinestring?.coordinates;
+
+    if (
+        !Array.isArray(coordinates) ||
+        coordinates.length < 2
+    ) {
+        throw new Error("Missing route geometry.");
+    }
+
+    const path = coordinates.map(point => ({
+        lat: point?.[1],
+        lng: point?.[0]
+    }));
+
+    if (!path.every(hasCoordinates)) {
+        throw new Error("Invalid route geometry.");
+    }
+
+    return path;
+}
+
+function fail(res, status, code, error) {
+    return res.status(status).json({
+        code,
+        error
+    });
+}
 
 // ======================================================
-// LOCATION LOOKUP
+// SAVED LOCATION LOOKUP
 // ======================================================
 
-const locationLookup =
-    new Map();
-
+// Build these once when the server starts.
+const lookup = new Map();
+const ids = new Set();
 
 for (const node of nodes) {
+    if (
+        !normalise(node.id) ||
+        !normalise(node.name) ||
+        ids.has(normalise(node.id)) ||
+        !hasCoordinates(destinationPoint(node)) ||
+        (
+            node.aliases !== undefined &&
+            !Array.isArray(node.aliases)
+        )
+    ) {
+        throw new Error(
+            `Invalid or duplicate location: ${node.id}`
+        );
+    }
 
-    const searchNames = [
+    ids.add(normalise(node.id));
+
+    const names = [
         node.id,
         node.name,
         ...(node.aliases || [])
     ];
 
+    for (const name of names) {
+        const key = normalise(name);
 
-    for (
-        const name of searchNames
-    ) {
-
-        const key =
-            normalise(name);
-
-
-        if (!key) {
-            continue;
-        }
-
-
-        const existing =
-            locationLookup.get(
-                key
-            );
-
+        if (!key) continue;
 
         if (
-            existing &&
-            existing !== node
+            lookup.has(key) &&
+            lookup.get(key) !== node
         ) {
             throw new Error(
                 `Duplicate location alias: ${name}`
             );
         }
 
-
-        locationLookup.set(
-            key,
-            node
-        );
+        lookup.set(key, node);
     }
 }
 
-
-function findLocation(value) {
-    return (
-        locationLookup.get(
-            normalise(value)
-        ) || null
-    );
-}
-
-
-// ======================================================
-// GOOGLE HELPERS
-// ======================================================
-
-function googleWaypoint(location) {
+const locations = nodes.map(node => {
+    const point = hasCoordinates(node)
+        ? node
+        : destinationPoint(node);
 
     return {
-        location: {
-            latLng: {
-                latitude:
-                    location.lat,
-
-                longitude:
-                    location.lng
-            }
-        }
+        id: node.id,
+        name: node.name,
+        aliases: node.aliases || [],
+        category: node.category || "building",
+        lat: point.lat,
+        lng: point.lng
     };
-}
-
-
-function stepTarget(step) {
-
-    const point =
-        step.endLocation
-            ?.latLng;
-
-
-    const target = {
-        lat:
-            point?.latitude,
-
-        lng:
-            point?.longitude
-    };
-
-
-    if (
-        !hasCoordinates(target)
-    ) {
-        throw new Error(
-            "Google returned an invalid step endpoint."
-        );
-    }
-
-
-    return target;
-}
-
+});
 
 // ======================================================
 // LOCATIONS ENDPOINT
 // ======================================================
 
-server.get(
-    "/locations",
-    (req, res) => {
-
-        const locations =
-            nodes
-                .filter(
-                    node =>
-                        hasCoordinates(
-                            node
-                        ) ||
-
-                        hasCoordinates(
-                            node?.entrance
-                        )
-                )
-                .map(
-                    node => {
-
-                        // Map marker position.
-                        //
-                        // If normal building coordinates
-                        // exist, keep using them.
-                        //
-                        // Otherwise fall back to entrance.
-                        const markerPoint =
-                            hasCoordinates(
-                                node
-                            )
-                                ? {
-                                    lat:
-                                        node.lat,
-
-                                    lng:
-                                        node.lng
-                                }
-
-                                : destinationPoint(
-                                    node
-                                );
-
-
-                        const entrance =
-                            destinationPoint(
-                                node
-                            );
-
-
-                        return {
-                            id:
-                                node.id,
-
-                            name:
-                                node.name,
-
-                            aliases:
-                                node.aliases ||
-                                [],
-
-                            category:
-                                node.category ||
-                                "building",
-
-                            lat:
-                                markerPoint.lat,
-
-                            lng:
-                                markerPoint.lng,
-
-                            entrance
-                        };
-                    }
-                );
-
-
-        res.json(
-            locations
-        );
-    }
-);
-
+// Suggestions and Quick Access share this endpoint.
+server.get("/locations", (req, res) => {
+    res.json(locations);
+});
 
 // ======================================================
 // WALKING ROUTE ENDPOINT
 // ======================================================
 
-server.get(
-    "/buildings",
-    async (req, res) => {
-
-        const {
-            from,
-            to,
-            userLat,
-            userLng
-        } = req.query;
-
-
-        // --------------------------------------------------
-        // Destination validation
-        // --------------------------------------------------
-
-        if (
-            !normalise(to)
-        ) {
-            return res
-                .status(400)
-                .json({
-                    error:
-                        "Please enter a destination."
-                });
-        }
-
-
-        const endLocation =
-            findLocation(to);
-
-
-        if (!endLocation) {
-            return res
-                .status(404)
-                .json({
-                    code:
-                        "LOCATION_NOT_FOUND",
-
-                    error:
-                        "Destination not found. Try WSS, SMH, FNB, CM or Matrix."
-                });
-        }
-
-
-        // IMPORTANT:
-        //
-        // This is the coordinate where the app
-        // must eventually declare arrival.
-        const exactEntrance =
-            destinationPoint(
-                endLocation
-            );
-
-
-        if (!exactEntrance) {
-            return res
-                .status(400)
-                .json({
-                    error:
-                        `${endLocation.name} does not have a valid entrance coordinate.`
-                });
-        }
-
-
-        // --------------------------------------------------
-        // Starting position
-        // --------------------------------------------------
-
-        let startLocation;
-
-
-        if (
-            userLat !== undefined ||
-            userLng !== undefined
-        ) {
-
-            const validInput =
-                typeof userLat ===
-                    "string" &&
-
-                typeof userLng ===
-                    "string" &&
-
-                userLat.trim() !==
-                    "" &&
-
-                userLng.trim() !==
-                    "";
-
-
-            if (!validInput) {
-                return res
-                    .status(400)
-                    .json({
-                        error:
-                            "Both GPS latitude and longitude are required."
-                    });
-            }
-
-
-            startLocation = {
-                lat:
-                    Number(userLat),
-
-                lng:
-                    Number(userLng)
-            };
-
-
-            if (
-                !hasCoordinates(
-                    startLocation
-                )
-            ) {
-                return res
-                    .status(400)
-                    .json({
-                        error:
-                            "Your GPS coordinates are invalid. Please try again."
-                    });
-            }
-        }
-
-        else {
-
-            const startNode =
-                findLocation(
-                    from
-                );
-
-
-            if (!startNode) {
-                return res
-                    .status(400)
-                    .json({
-                        error:
-                            "Provide your live location or a recognised starting building."
-                    });
-            }
-
-
-            startLocation =
-                destinationPoint(
-                    startNode
-                );
-
-
-            if (!startLocation) {
-                return res
-                    .status(400)
-                    .json({
-                        error:
-                            `${startNode.name} does not have valid coordinates.`
-                    });
-            }
-        }
-
-
-        // --------------------------------------------------
-        // API key
-        // --------------------------------------------------
-
-        const apiKey =
-            (
-                process.env
-                    .GOOGLE_ROUTE_API ||
-
-                process.env
-                    .GOOGLE_ROUTES_API_KEY ||
-
-                ""
-            ).trim();
-
-
-        if (!apiKey) {
-            return res
-                .status(503)
-                .json({
-                    code:
-                        "ROUTING_NOT_CONFIGURED",
-
-                    error:
-                        "Walking navigation is not configured yet."
-                });
-        }
-
-
-        // --------------------------------------------------
-        // Google walking request
-        // --------------------------------------------------
-
-        try {
-
-            const googleResponse =
-                await axios.post(
-
-                    "https://routes.googleapis.com/directions/v2:computeRoutes",
-
-                    {
-                        origin:
-                            googleWaypoint(
-                                startLocation
-                            ),
-
-
-                        // IMPORTANT:
-                        //
-                        // Google gets the exact saved
-                        // entrance coordinate.
-                        destination:
-                            googleWaypoint(
-                                exactEntrance
-                            ),
-
-
-                        travelMode:
-                            "WALK",
-
-                        languageCode:
-                            "en",
-
-                        units:
-                            "METRIC",
-
-                        polylineQuality:
-                            "HIGH_QUALITY",
-
-                        polylineEncoding:
-                            "GEO_JSON_LINESTRING"
-                    },
-
-                    {
-                        timeout:
-                            12000,
-
-                        headers: {
-                            "Content-Type":
-                                "application/json",
-
-                            "X-Goog-Api-Key":
-                                apiKey,
-
-                            "X-Goog-FieldMask":
-                                [
-                                    "routes.distanceMeters",
-
-                                    "routes.duration",
-
-                                    "routes.polyline.geoJsonLinestring",
-
-                                    "routes.legs.steps.distanceMeters",
-
-                                    "routes.legs.steps.endLocation",
-
-                                    "routes.legs.steps.navigationInstruction",
-
-                                    "routes.warnings"
-                                ].join(",")
-                        }
-                    }
-                );
-
-
-            const route =
-                googleResponse
-                    .data
-                    .routes?.[0];
-
-
-            if (!route) {
-                return res
-                    .status(404)
-                    .json({
-                        code:
-                            "ROUTE_NOT_FOUND",
-
-                        error:
-                            "No walking route was found between these locations."
-                    });
-            }
-
-
-            // ==================================================
-            // ROUTE POLYLINE
-            // ==================================================
-
-            const coordinates =
-                route
-                    .polyline
-                    ?.geoJsonLinestring
-                    ?.coordinates;
-
-
-            if (
-                !Array.isArray(
-                    coordinates
-                ) ||
-
-                coordinates.length <
-                    2 ||
-
-                !coordinates.every(
-                    point =>
-                        Array.isArray(
-                            point
-                        ) &&
-
-                        point.length >=
-                            2
-                )
-            ) {
-
-                throw new Error(
-                    "Google returned incomplete route geometry."
-                );
-            }
-
-
-            // GeoJSON:
-            //
-            // [longitude, latitude]
-            //
-            // Google Maps:
-            //
-            // { lat, lng }
-            const pathCoordinates =
-                coordinates.map(
-                    point => ({
-                        lat:
-                            point[1],
-
-                        lng:
-                            point[0]
-                    })
-                );
-
-
-            if (
-                !pathCoordinates.every(
-                    hasCoordinates
-                )
-            ) {
-                throw new Error(
-                    "Google returned invalid route coordinates."
-                );
-            }
-
-
-            // ==================================================
-            // GOOGLE WALKING STEPS
-            // ==================================================
-
-            const rawSteps =
-                (
-                    route.legs ||
-                    []
-                )
-                    .flatMap(
-                        leg =>
-                            leg.steps ||
-                            []
-                    );
-
-
-            if (
-                rawSteps.length ===
-                0
-            ) {
-                throw new Error(
-                    "Google returned no walking instructions."
-                );
-            }
-
-
-            const navigationSteps =
-                rawSteps.map(
-                    step => {
-
-                        const distance =
-                            step.distanceMeters ??
-                            0;
-
-
-                        if (
-                            !Number.isFinite(
-                                distance
-                            ) ||
-
-                            distance <
-                                0
-                        ) {
-                            throw new Error(
-                                "Google returned an invalid step distance."
-                            );
-                        }
-
-
-                        const instruction =
-                            step
-                                .navigationInstruction
-                                ?.instructions
-                                ?.trim();
-
-
-                        return {
-                            instruction:
-                                instruction ||
-
-                                `Follow the highlighted path for about ${Math.round(distance)} metres.`,
-
-
-                            distanceMeters:
-                                Math.round(
-                                    distance
-                                ),
-
-
-                            target:
-                                stepTarget(
-                                    step
-                                ),
-
-
-                            isArrival:
-                                false
-                        };
-                    }
-                );
-
-
-            // ==================================================
-            // EXACT ENTRANCE FINAL APPROACH
-            // ==================================================
-
-            const lastGoogleStep =
-                navigationSteps[
-                    navigationSteps.length -
-                    1
-                ];
-
-
-            // Google may snap the destination to the
-            // nearest mapped pedestrian path.
-            //
-            // Calculate the gap between Google's route
-            // endpoint and OUR exact saved entrance.
-            const finalApproachDistance =
-                distanceInMetres(
-                    lastGoogleStep.target,
-                    exactEntrance
-                );
-
-
-            // If Google's endpoint is more than 3 m away
-            // from the entrance, add one more navigation
-            // instruction to the REAL entrance.
-            if (
-                finalApproachDistance >
-                FINAL_APPROACH_MIN_METRES
-            ) {
-
-                navigationSteps.push({
-                    instruction:
-                        `Continue to the entrance of ${endLocation.name}.`,
-
-                    distanceMeters:
-                        Math.round(
-                            finalApproachDistance
-                        ),
-
-                    target: {
-                        lat:
-                            exactEntrance.lat,
-
-                        lng:
-                            exactEntrance.lng
-                    },
-
-                    isArrival:
-                        false
-                });
-            }
-
-
-            // ==================================================
-            // ARRIVAL STEP
-            // ==================================================
-
-            // IMPORTANT:
-            //
-            // Arrival now targets exactEntrance.
-            //
-            // We DO NOT use Google's snapped endpoint.
-            navigationSteps.push({
-                instruction:
-                    `You have arrived at the entrance of ${endLocation.name}.`,
-
-                distanceMeters:
-                    0,
-
-                target: {
-                    lat:
-                        exactEntrance.lat,
-
-                    lng:
-                        exactEntrance.lng
-                },
-
-                isArrival:
-                    true
-            });
-
-
-            // ==================================================
-            // EXTEND MAP LINE TO ENTRANCE WHEN SAFE
-            // ==================================================
-
-            const lastPathPoint =
-                pathCoordinates[
-                    pathCoordinates.length -
-                    1
-                ];
-
-
-            const pathGapToEntrance =
-                distanceInMetres(
-                    lastPathPoint,
-                    exactEntrance
-                );
-
-
-            // Only append a straight final segment when
-            // the entrance is nearby.
-            //
-            // If Google ends 100 m away, for example,
-            // drawing a straight line could incorrectly
-            // cut through a building.
-            if (
-                pathGapToEntrance >
-                    FINAL_APPROACH_MIN_METRES &&
-
-                pathGapToEntrance <=
-                    MAX_DRAWN_FINAL_APPROACH_METRES
-            ) {
-
-                pathCoordinates.push({
-                    lat:
-                        exactEntrance.lat,
-
-                    lng:
-                        exactEntrance.lng
-                });
-            }
-
-
-            // ==================================================
-            // ROUTE TOTALS
-            // ==================================================
-
-            const durationSeconds =
-                Number.parseFloat(
-                    route.duration
-                );
-
-
-            const googleDistanceMeters =
-                route.distanceMeters ??
-                0;
-
-
-            if (
-                !Number.isFinite(
-                    durationSeconds
-                ) ||
-
-                durationSeconds <
-                    0 ||
-
-                !Number.isFinite(
-                    googleDistanceMeters
-                ) ||
-
-                googleDistanceMeters <
-                    0
-            ) {
-                throw new Error(
-                    "Google returned invalid route totals."
-                );
-            }
-
-
-            // Include Google's snapped-endpoint ->
-            // exact-entrance gap in the displayed distance.
-            const totalDistanceMeters =
-                googleDistanceMeters +
-
-                Math.max(
-                    0,
-                    Math.round(
-                        finalApproachDistance
-                    )
-                );
-
-
-            // ==================================================
-            // WARNINGS
-            // ==================================================
-
-            const walkingNotice =
-                "Walking directions are in beta and may be missing sidewalks " +
-                "or pedestrian paths. Use caution and follow campus signs.";
-
-
-            const warnings = [
-                walkingNotice,
-
-                ...(
-                    Array.isArray(
-                        route.warnings
-                    )
-
-                        ? route.warnings
-
-                        : []
-                )
-            ]
-                .filter(
-                    value =>
-                        typeof value ===
-                            "string" &&
-
-                        value
-                            .trim() !==
-                            ""
-                );
-
-
-            if (
-                pathGapToEntrance >
-                MAX_DRAWN_FINAL_APPROACH_METRES
-            ) {
-
-                warnings.push(
-                    "Google's mapped walking route stops noticeably away from the saved entrance. " +
-                    "The final arrival target still uses the saved entrance coordinate."
-                );
-            }
-
-
-            // ==================================================
-            // SEND TO FRONTEND
-            // ==================================================
-
-            return res.json({
-
-                title:
-                    endLocation.name ||
-                    to.trim(),
-
-
-                duration:
-                    `${Math.max(
-                        1,
-                        Math.ceil(
-                            durationSeconds /
-                            60
-                        )
-                    )} mins`,
-
-
-                distance:
-                    `${Math.round(
-                        totalDistanceMeters
-                    )} m`,
-
-
-                directions:
-                    navigationSteps.map(
-                        step =>
-                            step.instruction
-                    ),
-
-
-                navigationSteps,
-
-
-                pathCoordinates,
-
-
-                // Helpful for testing.
-                exactEntrance,
-
-
-                // Shows where Google actually
-                // stopped the routable path.
-                googleRouteEnd: {
-                    ...lastGoogleStep.target
-                },
-
-
-                // Shows how far Google's snapped
-                // point was from your entrance.
-                finalApproachDistanceMeters:
-                    Math.round(
-                        finalApproachDistance
-                    ),
-
-
-                warnings: [
-                    ...new Set(
-                        warnings
-                    )
-                ]
-            });
-        }
-
-
-        // ======================================================
-        // ERRORS
-        // ======================================================
-
-        catch (error) {
-
-            const upstreamStatus =
-                error.response
-                    ?.status;
-
-
-            const googleError =
-                error.response
-                    ?.data
-                    ?.error;
-
-
-            console.error(
-                "Google Routes request failed:",
-                {
-                    httpStatus:
-                        upstreamStatus,
-
-                    code:
-                        googleError
-                            ?.status ||
-
-                        error.code ||
-
-                        "INVALID_RESPONSE"
-                }
-            );
-
-
-            if (
-                error.code ===
-                    "ECONNABORTED" ||
-
-                error.code ===
-                    "ETIMEDOUT"
-            ) {
-
-                return res
-                    .status(504)
-                    .json({
-                        code:
-                            "ROUTING_TIMEOUT",
-
-                        error:
-                            "Walking directions took too long. Please try again."
-                    });
-            }
-
-
-            if (
-                upstreamStatus ===
-                    401 ||
-
-                upstreamStatus ===
-                    403
-            ) {
-
-                return res
-                    .status(503)
-                    .json({
-                        code:
-                            "ROUTING_CONFIGURATION_ERROR",
-
-                        error:
-                            "Walking navigation is unavailable because of a server configuration problem."
-                    });
-            }
-
-
-            if (
-                upstreamStatus ===
-                429
-            ) {
-
-                return res
-                    .status(503)
-                    .json({
-                        code:
-                            "ROUTING_LIMIT_REACHED",
-
-                        error:
-                            "Walking navigation is temporarily unavailable. Please try again later."
-                    });
-            }
-
-
-            if (
-                googleError?.message
-            ) {
-                console.error(
-                    "Google Routes message:",
-                    googleError.message
-                );
-            }
-
-
-            return res
-                .status(502)
-                .json({
-                    code:
-                        "ROUTING_FAILED",
-
-                    error:
-                        "Walking directions could not be loaded. Please try again."
-                });
-        }
-    }
-);
-
-
-// ======================================================
-// START SERVER
-// ======================================================
-
-server.listen(
-    PORT,
-    "0.0.0.0",
-    () => {
-
-        console.log(
-            `The server is running on port ${PORT}`
+server.get("/buildings", async (req, res) => {
+    const {
+        from,
+        to,
+        userLat,
+        userLng
+    } = req.query;
+
+    if (!normalise(to)) {
+        return fail(
+            res,
+            400,
+            "INVALID_DESTINATION",
+            "Please enter a destination."
         );
     }
-);
+
+    const endNode = lookup.get(normalise(to));
+
+    if (!endNode) {
+        return fail(
+            res,
+            404,
+            "LOCATION_NOT_FOUND",
+            "Location not found. Try WSS, SMH, FNB, CM or Matrix."
+        );
+    }
+
+    // --------------------------------------------------
+    // Starting position
+    // --------------------------------------------------
+
+    let origin;
+    let startPoint;
+
+    if (
+        userLat !== undefined ||
+        userLng !== undefined
+    ) {
+        if (
+            typeof userLat !== "string" ||
+            typeof userLng !== "string" ||
+            !userLat.trim() ||
+            !userLng.trim()
+        ) {
+            return fail(
+                res,
+                400,
+                "INVALID_ORIGIN",
+                "Both GPS latitude and longitude are required."
+            );
+        }
+
+        startPoint = {
+            lat: Number(userLat),
+            lng: Number(userLng)
+        };
+
+        if (!hasCoordinates(startPoint)) {
+            return fail(
+                res,
+                400,
+                "INVALID_ORIGIN",
+                "Your GPS coordinates are invalid."
+            );
+        }
+
+        origin = coordinateWaypoint(startPoint);
+    } else {
+        const startNode = lookup.get(normalise(from));
+
+        if (!startNode) {
+            return fail(
+                res,
+                400,
+                "INVALID_ORIGIN",
+                "Provide your location or a recognised starting building."
+            );
+        }
+
+        startPoint = destinationPoint(startNode);
+        origin = nodeWaypoint(startNode);
+    }
+
+    if (!API_KEY) {
+        return fail(
+            res,
+            503,
+            "ROUTING_NOT_CONFIGURED",
+            "The server is missing its Google Routes API key."
+        );
+    }
+
+    // Stop upstream work if the browser disconnects.
+    const controller = new AbortController();
+
+    const cancel = () => {
+        if (!res.writableEnded) {
+            controller.abort();
+        }
+    };
+
+    res.on("close", cancel);
+
+    try {
+        const response = await axios.post(
+            "https://routes.googleapis.com/directions/v2:computeRoutes",
+
+            {
+                origin,
+                destination: nodeWaypoint(endNode),
+                travelMode: "WALK",
+                languageCode: "en",
+                units: "METRIC",
+                polylineQuality: "HIGH_QUALITY",
+                polylineEncoding: "GEO_JSON_LINESTRING"
+            },
+
+            {
+                timeout: 12000,
+                signal: controller.signal,
+
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": API_KEY,
+
+                    "X-Goog-FieldMask": [
+                        "routes.distanceMeters",
+                        "routes.duration",
+                        "routes.polyline.geoJsonLinestring",
+                        "routes.legs.startLocation",
+                        "routes.legs.endLocation",
+                        "routes.legs.steps.distanceMeters",
+                        "routes.legs.steps.endLocation",
+                        "routes.legs.steps.polyline.geoJsonLinestring",
+                        "routes.legs.steps.navigationInstruction",
+                        "routes.warnings"
+                    ].join(",")
+                }
+            }
+        );
+
+        if (controller.signal.aborted) return;
+
+        const route = response.data.routes?.[0];
+
+        if (!route) {
+            return fail(
+                res,
+                404,
+                "ROUTE_NOT_FOUND",
+                "Google could not find a walking route."
+            );
+        }
+
+        // --------------------------------------------------
+        // Use Google's actual mapped geometry
+        // --------------------------------------------------
+
+        const pathCoordinates = googlePath(route.polyline);
+        const legs = route.legs;
+
+        if (!Array.isArray(legs) || !legs.length) {
+            throw new Error("Missing route legs.");
+        }
+
+        const routeStart = googlePoint(
+            legs[0].startLocation
+        );
+
+        const routeEnd = googlePoint(
+            legs[legs.length - 1].endLocation
+        );
+
+        const target = destinationPoint(endNode);
+
+        const endGap = distanceInMetres(
+            routeEnd,
+            target
+        );
+
+        const startGap = distanceInMetres(
+            startPoint,
+            routeStart
+        );
+
+        const warnings = [
+            "Walking directions are in beta and may be missing sidewalks or pedestrian paths. Use caution and follow campus signs."
+        ];
+
+        if (Array.isArray(route.warnings)) {
+            warnings.push(
+                ...route.warnings.filter(
+                    value => typeof value === "string"
+                )
+            );
+        }
+
+        // These limits flag large discrepancies.
+        // They do NOT prove that an entrance is correct.
+        if (
+            verifiedEntrance(endNode) &&
+            endGap > 25
+        ) {
+            return fail(
+                res,
+                422,
+                "ENTRANCE_NOT_REACHED",
+                `Google's walking path stops ${Math.round(endGap)} m from the verified entrance. A complete entrance route is unavailable.`
+            );
+        }
+
+        if (startGap > 50) {
+            return fail(
+                res,
+                422,
+                "ORIGIN_NOT_CONNECTED",
+                `Google's mapped path starts ${Math.round(startGap)} m from your position. Move to a mapped walkway and search again.`
+            );
+        }
+
+        if (!verifiedEntrance(endNode)) {
+            warnings.push(
+                "The exact pedestrian entrance has not been verified. The route ends at Google's mapped access point."
+            );
+        }
+
+        if (endGap > 25) {
+            warnings.push(
+                `The route endpoint is ${Math.round(endGap)} m from the saved venue pin. Check the venue signs.`
+            );
+        }
+
+        if (startGap > 15) {
+            warnings.push(
+                `The mapped route starts about ${Math.round(startGap)} m from your supplied position.`
+            );
+        }
+
+        // --------------------------------------------------
+        // One instruction per walking step
+        // --------------------------------------------------
+
+        const navigationSteps = legs
+            .flatMap(leg => leg.steps || [])
+            .map(step => {
+                const distance = step.distanceMeters ?? 0;
+
+                if (
+                    !Number.isFinite(distance) ||
+                    distance < 0
+                ) {
+                    throw new Error(
+                        "Invalid step distance."
+                    );
+                }
+
+                return {
+                    instruction:
+                        step.navigationInstruction
+                            ?.instructions?.trim() ||
+                        "Follow the highlighted walking path.",
+
+                    distanceMeters: Math.round(distance),
+
+                    // A step finishes at its own endLocation.
+                    target: googlePoint(step.endLocation),
+
+                    // Used to detect missed turns.
+                    pathCoordinates: googlePath(step.polyline),
+
+                    isArrival: false
+                };
+            });
+
+        if (!navigationSteps.length) {
+            throw new Error("Missing walking steps.");
+        }
+
+        // This final step requires its own GPS check.
+        // It does not claim that an unverified doorway was reached.
+        navigationSteps.push({
+            instruction:
+                "Mapped walking route complete. Check the venue entrance signs.",
+
+            distanceMeters: 0,
+            target: routeEnd,
+            pathCoordinates: [],
+            isArrival: true
+        });
+
+        // --------------------------------------------------
+        // Route totals
+        // --------------------------------------------------
+
+        const durationSeconds = Number(
+            String(route.duration).replace(/s$/, "")
+        );
+
+        const distanceMeters = route.distanceMeters ?? 0;
+
+        if (
+            !Number.isFinite(durationSeconds) ||
+            durationSeconds < 0 ||
+            !Number.isFinite(distanceMeters) ||
+            distanceMeters < 0
+        ) {
+            throw new Error("Invalid route totals.");
+        }
+
+        // Do not cache responses containing a user's route.
+        res.set("Cache-Control", "no-store");
+
+        return res.json({
+            title: endNode.name,
+
+            duration:
+                `${Math.max(1, Math.ceil(durationSeconds / 60))} mins`,
+
+            distance:
+                `${Math.round(distanceMeters)} m`,
+
+            directions: navigationSteps.map(
+                step => step.instruction
+            ),
+
+            navigationSteps,
+            pathCoordinates,
+            warnings: [...new Set(warnings)],
+
+            destination: {
+                id: endNode.id,
+                lat: target.lat,
+                lng: target.lng,
+                entranceVerified: verifiedEntrance(endNode)
+            },
+
+            // Useful when investigating a neighbouring-building route.
+            googleRouteEnd: routeEnd,
+            endpointGapMeters: Math.round(endGap),
+            originGapMeters: Math.round(startGap),
+
+            routingTarget: verifiedEntrance(endNode)
+                ? "verified-entrance"
+                : endNode.placeIdVerified === true &&
+                  endNode.googlePlaceId
+                    ? "verified-place"
+                    : "saved-coordinate"
+        });
+    } catch (error) {
+        if (controller.signal.aborted) return;
+
+        const status = error.response?.status;
+
+        // Do not log the Axios request object.
+        // Its headers contain the secret API key.
+        console.error(
+            "Google Routes failed:",
+            status || error.code || "INVALID_RESPONSE"
+        );
+
+        if ([401, 403].includes(status)) {
+            return fail(
+                res,
+                503,
+                "ROUTING_CONFIGURATION_ERROR",
+                "Check the server API key, enabled Routes API and billing."
+            );
+        }
+
+        if (status === 429) {
+            return fail(
+                res,
+                503,
+                "ROUTING_LIMIT_REACHED",
+                "Navigation is busy. Please try again shortly."
+            );
+        }
+
+        if (
+            ["ECONNABORTED", "ETIMEDOUT"].includes(error.code)
+        ) {
+            return fail(
+                res,
+                504,
+                "ROUTING_TIMEOUT",
+                "Walking directions took too long. Please try again."
+            );
+        }
+
+        return fail(
+            res,
+            502,
+            "ROUTING_FAILED",
+            "Walking directions could not be loaded. Please try again."
+        );
+    } finally {
+        res.off("close", cancel);
+    }
+});
+
+// Start after validating the saved venue data.
+server.listen(PORT, "0.0.0.0", () => {
+    console.log(`The server is running on port ${PORT}`);
+});
