@@ -248,8 +248,11 @@
                 <input id="search-input"
                       enterkeyhint="search"
                        type="search"
+                       list="location-suggestions"
+                       autocomplete="off"
                        placeholder="Search buildings, venues, residences..."
                        class="w-full h-12 sm:h-14 bg-white border border-slate-200 rounded-xl sm:rounded-2xl pl-12 pr-4 text-sm sm:text-base outline-none shadow-subtle focus:ring-2 focus:ring-wits-900/20 focus:border-wits-700 transition">
+                       <datalist id="location-suggestions"></datalist>
               </label>
 
               <!-- <div id="live-search-dropdown" class="hidden absolute left-0 right-14 top-full mt-2 bg-white border border-slate-200 rounded-xl shadow-float z-50 overflow-hidden">
@@ -1197,6 +1200,122 @@ function updateStepFromGPS(position) {
 
     showCurrentStep();
 }
+
+const locationSuggestions =
+    document.getElementById("location-suggestions");
+
+let searchableLocations = [];
+
+function normaliseSearch(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+}
+
+function updateLocationSuggestions() {
+    const query = normaliseSearch(searchInput.value);
+
+    locationSuggestions.replaceChildren();
+
+    if (!query) return;
+
+    // Hide suggestions when the input contains a complete location name.
+    // Selecting a suggestion fills the input with this name.
+    const completeLocationSelected = searchableLocations.some(
+        location => normaliseSearch(location.name) === query
+    );
+
+    if (completeLocationSelected) return;
+
+    const matches = searchableLocations
+        .map(location => {
+            const names = [
+                location.name,
+                location.id,
+                ...location.aliases
+            ].map(normaliseSearch);
+
+            // Show exact matches first, then names starting
+            // with the query, then other partial matches.
+            let score = 0;
+
+            if (names.some(name => name === query)) {
+                score = 3;
+            } else if (names.some(name => name.startsWith(query))) {
+                score = 2;
+            } else if (names.some(name => name.includes(query))) {
+                score = 1;
+            }
+
+            return { location, score };
+        })
+        .filter(match => match.score > 0)
+        .sort((a, b) =>
+            b.score - a.score ||
+            a.location.name.localeCompare(b.location.name)
+        )
+        .slice(0, 8);
+
+    for (const { location } of matches) {
+        const option = document.createElement("option");
+
+        option.value = location.name;
+
+        // Include matching aliases for native browser filtering.
+        option.label = [
+            location.id,
+            ...location.aliases
+        ].join(" • ");
+
+        locationSuggestions.appendChild(option);
+    }
+}
+
+searchInput.addEventListener("input", updateLocationSuggestions);
+
+async function loadLocationSuggestions() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+        const response = await fetch(`${SERVER_URL}/locations`, {
+            signal: controller.signal
+        });
+
+        if (!response.ok) {
+            throw new Error("Unable to load location suggestions.");
+        }
+
+        const locations = await response.json();
+
+        if (!Array.isArray(locations)) {
+            throw new Error("Invalid location list.");
+        }
+
+        searchableLocations = locations
+            .filter(location =>
+                location &&
+                typeof location.name === "string"
+            )
+            .map(location => ({
+                id: location.id || "",
+                name: location.name,
+                aliases: Array.isArray(location.aliases)
+                    ? location.aliases
+                    : []
+            }));
+
+        updateLocationSuggestions();
+    } catch (error) {
+        // Searching still works if suggestions cannot load.
+        console.warn("Location suggestions unavailable:", error.message);
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+loadLocationSuggestions();
 
     document.querySelectorAll(".quick-access").forEach(button => {
       button.addEventListener("click", () => {
