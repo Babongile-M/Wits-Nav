@@ -1,114 +1,81 @@
+require("dotenv").config(); // Load the .env file safely to use secret variables
 const pack = require("express");
-const server = pack();
+const cors = require("cors"); // ADD CORS MIDDLEWARE (Fixes the "blocked by CORS policy" error sicne we are using a live server not a local one
+const axios = require("axios"); // Added to sent HTTP requests to Google
 
-// ADD CORS MIDDLEWARE (Fixes the "blocked by CORS policy" error sicne we are using a live server not a local one
-const cors = require("cors");
+const server = pack();
 server.use(cors()); 
+
+// Pull The Google Maps API Key from the .env file
+const GOOGLE_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY;
 
 const nodes = require("./nodes.json");
 const connections = require("./connections.json");
 const directions = require("./directions.json");
 
-// Ensuring that Railway.app uses its custom port dynamically first before defaulting to port 4000 locally
+// Ensuring that Railway.app uses its custom port dynamically first before defaulting to port 8080 locally
 const PORT = process.env.PORT || 8080;
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`The server is running on port ${PORT}`);
 });
 
-function findRoute(current, To, visited, route) {
+server.get("/buildings", async (req, res) => {
+    const { from, to } = req.query;
 
-    visited.push(current);
-    route.push(current);
-
-    if (current === To) {
-        return true;
+    // Boundary check parameters verification block
+    if (!from || !to) {
+        return res.status(400).json({ error: "Missing navigation boundaries" });
     }
 
-    let currentNode = null;
+    // Translates fast acronym keywords straight to official physical addresses
+    const witsAcronymsLookup = {
+        "wss": "Wits Science Stadium, Braamfontein, Johannesburg",
+        "smh": "Solomon Mahlangu House, Wits University, Johannesburg",
+        "fnb": "FNB Building, Wits West Campus, Johannesburg",
+        "cm": "Chamber of Mines Building, Wits University, Johannesburg",
+        "sh": "Senate House, Wits University, Johannesburg",
+        "cb": "Central Block, Wits University, Johannesburg",
+        "matrix": "The Matrix Student Centre, Wits University, Johannesburg"
+    };
 
-    for (let i = 0; i < connections.length; i++) {
+    // Clean text strings and map matching address bounds, fallback to search text if not in dictionary
+    const originAddress = witsAcronymsLookup[from.toLowerCase().trim()] || `${from}, Wits University, Johannesburg`;
+    const destinationAddress = witsAcronymsLookup[to.toLowerCase().trim()] || `${to}, Wits University, Johannesburg`;
 
-        if (connections[i].alias === current) {
-            currentNode = connections[i];
-            break;
-        }
-    }
+    try {
+        // Query Google's global Directions routing engine directly from your server side
+        const googleUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(originAddress)}&destination=${encodeURIComponent(destinationAddress)}&mode=walking&key=${GOOGLE_KEY}`;
+        const googleResponse = await axios.get(googleUrl);
+        const data = googleResponse.data;
 
-    if (currentNode === null) {
-        route.pop();
-        return false;
-    }
-
-    for (let i = 0; i < currentNode.connection.length; i++) {
-
-        let nextNode = currentNode.connection[i];
-
-        if (!visited.includes(nextNode)) {
-
-            let found = findRoute(nextNode, To, visited, route);
-
-            if (found === true) {
-                return true;
-            }
-        }
-    }
-
-    route.pop();
-
-    return false;
-}
-
-server.get("/buildings", (req, res) => {
-
-    let From = null;
-    let To = null;
-
-    for (let i = 0; i < nodes.length; i++) {
-
-        if (nodes[i].alias === req.query.from) {
-            From = nodes[i].alias;
+        if (data.status !== "OK") {
+            return res.status(400).json({ error: `Google API Error: ${data.status}` });
         }
 
-        if (nodes[i].alias === req.query.to) {
-            To = nodes[i].alias;
-        }
-    }
+        const leg = data.routes[0].legs[0];
+        
+        // CRITICAL FOR DYNAMIC FRONTEND RENDERING: Extract overview path polyline geometry tokens.
+        // This compressed vector path string lets the frontend render smooth path overlays onto the live map frame.
+        const overviewPolyline = data.routes[0].overview_polyline.points;
 
-    if (From === null || To === null) {
-        return res.status(404).json({
-            error: "Invalid route"
+        // Concatenate individual step instructions together cleanly into a single structured list array
+        const customInstructionsList = leg.steps.map((step, index) => {
+            // Strip out native browser HTML styling annotations (like <b>Head north</b> -> Head north)
+            return `${index + 1}. ${step.instructions.replace(/<\/?[^>]+(>|\$)/g, "")}`;
         });
-    }
 
-    let route = [];
-    let visited = [];
-
-    let found = findRoute(From, To, visited, route);
-
-if ( found ===false){
-        res.status(404).json({
-            error: "No route found"
+        // Respond back to frontend with a neat, lightweight data delivery payload package
+        res.json({
+            title: to.toUpperCase(),
+            duration: leg.duration.text,
+            distance: leg.distance.text,
+            directions: customInstructionsList, // Sent as an array list of dynamic instructions steps
+            polyline: overviewPolyline 
         });
+
+    } catch (error) {
+        console.error("Backend request validation server fault:", error.message);
+        res.status(500).json({ error: "Internal navigation engine communication failure" });
     }
-    let instructions = [];
-    for (let i=0; i<route.length-1; i++){
-        let start = route[i];
-        let next = route[i+1];
-        for ( let j=0; j<directions.length; j++){
-            if ( start === directions[j].from && next === directions[j].to){
-                instructions.push(directions[j].instruction);
-                break;
-            }
-        }
-
-    }
-
-res.json({
-    from:From,
-    to: To,
-    route: route,
-    directions : instructions
-});
-
 });

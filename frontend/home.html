@@ -3,11 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Wits Nav - Campus Navigation PWA</title>
+  <title>Wits Nav - Campus Navigation</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDARxKCBHasIItYpKle-abG-EG2iTgVhsw&libraries=geometry&callback=initMap"
+    async
+    defer>
+  </script>
   <script>
     tailwind.config = {
       theme: {
@@ -285,90 +290,7 @@
             <!-- MAP -->
             <div class="relative bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-subtle overflow-hidden desktop-map mobile-map">
 
-              <div id="map" class="relative w-full h-full min-h-[440px] sm:min-h-[500px] lg:min-h-[560px] map-grid-pattern overflow-hidden">
-
-                <!-- Decorative map terrain -->
-                <div class="map-green left-[4%] top-[9%] w-[25%] h-[20%]"></div>
-                <div class="map-green left-[56%] top-[7%] w-[32%] h-[18%]"></div>
-                <div class="map-green left-[63%] bottom-[7%] w-[25%] h-[20%]"></div>
-                <div class="map-green left-[5%] bottom-[10%] w-[31%] h-[17%]"></div>
-
-                <div class="map-building left-[35%] top-[11%] w-[15%] h-[12%]"></div>
-                <div class="map-building left-[52%] top-[29%] w-[20%] h-[13%]"></div>
-                <div class="map-building left-[18%] top-[36%] w-[17%] h-[16%]"></div>
-                <div class="map-building left-[39%] bottom-[17%] w-[18%] h-[14%]"></div>
-                <div class="map-building left-[73%] bottom-[30%] w-[13%] h-[17%]"></div>
-                <div class="map-building left-[6%] bottom-[32%] w-[17%] h-[12%]"></div>
-
-                <div class="map-road left-[-5%] top-[46%] w-[110%] h-[22px] rotate-[-8deg]"></div>
-                <div class="map-road left-[44%] top-[-5%] w-[24px] h-[115%] rotate-[7deg]"></div>
-                <div class="map-road left-[12%] top-[70%] w-[80%] h-[18px] rotate-[12deg]"></div>
-
-                <!-- Map labels -->
-                <span class="absolute left-[13%] top-[31%] text-[10px] sm:text-xs font-semibold text-slate-500">Library</span>
-                <span class="absolute left-[43%] top-[28%] text-[10px] sm:text-xs font-semibold text-slate-500">University Square</span>
-                <span class="absolute right-[17%] top-[48%] text-[10px] sm:text-xs font-semibold text-slate-500">Great Hall</span>
-                <span class="absolute left-[10%] bottom-[28%] text-[10px] sm:text-xs font-semibold text-slate-500">Chamber of Mines</span>
-                <span class="absolute right-[13%] bottom-[29%] text-[10px] sm:text-xs font-semibold text-slate-500">WAM</span>
-
-                <!-- Route -->
-                <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1000 700" preserveAspectRatio="none">
-                  <path d="M270 535 C340 500 375 430 445 390 C520 348 570 335 610 270 C650 210 715 195 790 145"
-                        fill="none"
-                        stroke="#ffffff"
-                        stroke-width="15"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        opacity=".9"/>
-                  <path id="route-path"
-                        class="route-line"
-                        d="M270 535 C340 500 375 430 445 390 C520 348 570 335 610 270 C650 210 715 195 790 145"
-                        fill="none"
-                        stroke="#002855"
-                        stroke-width="7"
-                        stroke-dasharray="12 12"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"/>
-                </svg>
-
-                <!-- Current location -->
-                <div class="absolute left-[27%] top-[76%] -translate-x-1/2 -translate-y-1/2">
-                  <div class="absolute -inset-5 rounded-full bg-blue-400/20 pulse-ring"></div>
-                  <div class="relative w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-blue-600 border-[4px] border-white shadow-lg"></div>
-                </div>
-
-                <!-- Destination -->
-                <div id="destination-marker" class="absolute left-[79%] top-[21%] -translate-x-1/2 -translate-y-1/2">
-                  <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-wits-gold/30 flex items-center justify-center">
-                    <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-wits-gold border-[3px] border-wits-900 shadow-lg flex items-center justify-center">
-                      <i data-lucide="map-pin" class="w-4 h-4 text-wits-900 fill-wits-900"></i>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Destination bubble -->
-                <div class="absolute left-[79%] top-[12%] -translate-x-1/2 bg-white/95 backdrop-blur rounded-xl shadow-float border border-slate-200 px-3 py-2 min-w-[145px]">
-                  <p id="map-destination-title" class="text-xs font-extrabold text-wits-900 truncate">Old Mutual Building</p>
-                  <p id="map-destination-meta" class="text-[10px] text-slate-500 mt-0.5">320 m · 4 min walk</p>
-                </div>
-
-                <!-- Map controls -->
-                <div class="absolute top-4 right-4 flex flex-col gap-2">
-                  <button type="button" class="map-control w-10 h-10 rounded-xl bg-white shadow-float border border-slate-200 flex items-center justify-center text-wits-900 hover:bg-slate-50 active:scale-95 transition" title="Layers">
-                    <i data-lucide="layers" class="w-5 h-5"></i>
-                  </button>
-                  <div class="bg-white shadow-float border border-slate-200 rounded-xl overflow-hidden">
-                    <button type="button" class="map-control w-10 h-10 flex items-center justify-center text-wits-900 hover:bg-slate-50 border-b border-slate-100" title="Zoom in">
-                      <i data-lucide="plus" class="w-5 h-5"></i>
-                    </button>
-                    <button type="button" class="map-control w-10 h-10 flex items-center justify-center text-wits-900 hover:bg-slate-50" title="Zoom out">
-                      <i data-lucide="minus" class="w-5 h-5"></i>
-                    </button>
-                  </div>
-                  <button id="recenter-button" type="button" class="w-10 h-10 rounded-xl bg-white shadow-float border border-slate-200 flex items-center justify-center text-wits-900 hover:bg-slate-50 active:scale-95 transition" title="Recenter">
-                    <i data-lucide="locate-fixed" class="w-5 h-5"></i>
-                  </button>
-                </div>
+              <div id="google-campus-map" class="relative w-full h-full min-h-[440px] sm:min-h-[500px] lg:min-h-[560px] map-grid-pattern overflow-hidden relative z-0">
 
                 <!-- Map mode -->
                 <div class="absolute top-4 left-4">
@@ -379,14 +301,14 @@
                 </div>
 
                 <!-- ETA -->
-                <div class="absolute left-1/2 -translate-x-1/2 bottom-4 sm:bottom-5">
+                <div class="absolute left-1/2 -translate-x-1/2 bottom-4 sm:bottom-5 z-10">
                   <div class="bg-wits-900 text-white px-4 py-2.5 rounded-2xl shadow-float flex items-center gap-3 whitespace-nowrap">
                     <div class="flex items-center gap-1.5">
                       <i data-lucide="footprints" class="w-4 h-4 text-wits-gold"></i>
-                      <span id="eta-text" class="text-xs font-bold">4 min walk</span>
+                      <span id="eta-text" class="text-xs font-bold">0 min walk</span>
                     </div>
                     <span class="w-px h-4 bg-white/20"></span>
-                    <span class="text-[11px] text-blue-100">320 m</span>
+                    <span id="map-distance-pill" class="text-[11px] text-blue-100">0 m</span>
                   </div>
                 </div>
               </div>
@@ -786,63 +708,33 @@
   ========================== -->
   <script>
     lucide.createIcons();
+  
+    // RUNNING EXCLUSIVELY ON LIVE PRODUCTION SERVER HOSTED ON Railway.app
+    const SERVER_URL = "https://wits-nav-production.up.railway.app";
+    // Check if connection is to the correct place
+    // console.log(`Wits Nav initialized. Connected to production cluster at: ${SERVER_URL}`);
 
-    const places = {
-      oldMutual: {
-        title: "Old Mutual Building",
-        category: "Main Campus · Building",
-        time: "4 min",
-        distance: "320 m",
-        meta: "320 m · 4 min walk",
-        instruction: "Head north past Senate House stairs toward Student Union."
-      },
-      matrix: {
-        title: "The Matrix",
-        category: "East Campus · Venue",
-        time: "4 min",
-        distance: "320 m",
-        meta: "320 m · 4 min walk",
-        instruction: "Head north past Senate House stairs toward Student Union."
-      },
-      fnb: {
-        title: "FNB Lecture Hall",
-        category: "West Campus · Venue",
-        time: "9 min",
-        distance: "680 m",
-        meta: "680 m · 9 min walk",
-        instruction: "Cross the Amic Deck bridge toward the West Campus lawn."
-      },
-      solomon: {
-        title: "Solomon Mahlangu Hall",
-        category: "Senate House · Venue",
-        time: "6 min",
-        distance: "450 m",
-        meta: "450 m · 6 min walk",
-        instruction: "Walk through the Senate House concourse toward the hall."
-      },
-      science: {
-        title: "Science Stadium Auditorium",
-        category: "East Campus · Venue",
-        time: "3 min",
-        distance: "210 m",
-        meta: "210 m · 3 min walk",
-        instruction: "Follow the Library lawn pathway toward the Science Stadium."
-      },
-      wam: {
-        title: "Wits Art Museum",
-        category: "Braamfontein · Museum",
-        time: "7 min",
-        distance: "510 m",
-        meta: "510 m · 7 min walk",
-        instruction: "Descend University Road toward the museum entrance."
-      }
+    // Global Google Map Instance Handles
+    let map;
+    let directionsService;
+    let directionsRenderer;
+    let pendingPolyline = null;
+
+    // Wits Building Acronym Lookup Table
+    const witsAcronymsLookup = {
+      "wss": "Wits Science Stadium, Braamfontein, Johannesburg",
+      "smh": "Solomon Mahlangu House, Wits University, Johannesburg",
+      "fnb": "FNB Building, Wits West Campus, Johannesburg",
+      "cm": "Chamber of Mines Building, Wits University, Johannesburg",
+      "sh": "Senate House, Wits University, Johannesburg",
+      "cb": "Central Block, Wits University, Johannesburg",
+      "matrix": "The Matrix Student Centre, Wits University, Johannesburg"
     };
 
     let selectedPlace = "oldMutual";
     let navigating = false;
 
     const searchInput = document.getElementById("search-input");
-    const HomefilterButton = document.getElementById("filter-button");
     const filterPanel = document.getElementById("filter-panel");
 
     const destinationTitle = document.getElementById("destination-title");
@@ -874,6 +766,9 @@
     const sidebarAbbrevBtn = document.getElementById("sidebar-abbrev-btn");
     const sidebarEmergencyBtn = document.getElementById("sidebar-emergency-btn");
 
+    // Direction Instructions Cacellation Button
+    const cancelNavBtn = document.getElementById("cancel-navigation-btn");
+
     // Emergency Tab Filter Buttons & Cards
     const filterMedicalBtn = document.getElementById("filter-medical-btn");
     const filterSecurityBtn = document.getElementById("filter-security-btn");
@@ -885,35 +780,139 @@
     
     const abbrevSearch = document.getElementById("abbrev-search");
 
-    function updateDestination(key) {
-      const data = places[key];
-      if (!data) return;
+    // Automatically fired on layout initialization by the Google scripts callback link
+    window.initMap = function initMap() {
+      // Default coordinate viewport centering securely over Wits East Campus grounds        
+      const witsCenterPoint = { lat: -26.1906, lng: 28.0286 };
 
-      selectedPlace = key;
+      map = new google.maps.Map(document.getElementById("google-campus-map"), {
+        zoom: 16,
+        center: witsCenterPoint,
+        disableDefaultUI: true, // Hides native commercial junk maps UI
+        clickableIcons: false,
+        styles: [
+          { 
+            featureType: "poi.business",
+            elementType: "labels", 
+            stylers: [{ "visibility": "off" }] 
+          }
+        ]
+      });
 
-      destinationTitle.textContent = data.title;
-      destinationCategory.textContent = data.category;
-      mapDestinationTitle.textContent = data.title;
-      mapDestinationMeta.textContent = data.meta;
-      walkTime.textContent = data.time;
-      walkDistance.textContent = data.distance;
-      etaText.textContent = data.time + " walk";
-      routeLabel.textContent = "Walking route";
+      directionsService = new google.maps.DirectionsService();
+      directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: false,
+        polylineOptions: {
+          strokeColor: "#ffb81c", // Official Wits Gold branding accent
+          strokeWeight: 5
+        }
+      });
+      
+      console.log("Google Maps loaded successfully.");
 
-      if (navigating) {
-        stepInstructionText.textContent = data.instruction;
+      // If the backend answered before Google Maps finished loading,
+      // render the saved route now.
+      if (pendingPolyline) {
+        renderBackendPolyline(pendingPolyline);
+        pendingPolyline = null;
       }
     }
 
-    HomefilterButton.addEventListener("click", () => {
-      const ispanelHidden = filterPanel.classList.toggle("hidden");
+    // Converts the encoded polyline returned by the Railway backend into
+    // coordinates that Google Maps can draw on the live map.
+    function renderBackendPolyline(encodedPolyline) {
+      if (!encodedPolyline) return;
 
-      if (ispanelHidden) {
-        filterChevron.classList.remove("rotate-180");
-      } else {
-        filterChevron.classList.add("rotate-180");
+      if (!window.google || !google.maps || !google.maps.geometry || !directionsRenderer) {
+        pendingPolyline = encodedPolyline;
+        return;
       }
-    });
+
+      const decodedPathVectors = google.maps.geometry.encoding.decodePath(encodedPolyline);
+
+      // directionsRenderer.setOptions({
+      //   polylineOptions: {
+      //     strokeColor: "#ffb81c",
+      //     strokeWeight: 5
+      //   }
+      // });
+
+      // DirectionsRenderer expects a DirectionsResult. Provide the
+      // backend's decoded overview path without making another Google
+      // Directions request from the browser.
+      directionsRenderer.setDirections({
+        request: {
+          origin: { lat: -26.1906, lng: 28.0286 },
+          destination: { lat: -26.1906, lng: 28.0286 },
+          travelMode: google.maps.TravelMode.WALKING
+        },
+        routes: [{
+          bounds: new google.maps.LatLngBounds(),
+          copyrights: "",
+          legs: [],
+          overview_path: decodedPathVectors,
+          overview_polyline: encodedPolyline,
+          summary: "",
+          warnings: [],
+          waypoint_order: []
+        }]
+      });
+    }
+
+    function updateDestination(searchInputString) {
+      if (!searchInputString) return;
+
+      // Solomon Mahlangu House remains the default start boundary for this MVP
+      const origin = "Solomon Mahlangu House";
+      const destination = searchInputString.trim();
+
+      selectedPlace = searchInputString;
+
+      // EXECUTE GOOGLE WALKING PATH CALCULATIONS
+      // SEND REQUEST STRAIGHT TO THE SECURABLE CLOUD PROXY/SERVER
+      fetch(`${SERVER_URL}/buildings?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(destination)}`).then(response => {
+        if (!response.ok) throw new Error("Backend proxy lookup failed");
+        return response.json();
+        }).then(serverData => {
+          const stepsPanel = document.getElementById("navigation-steps-panel");
+          const stepText = document.getElementById("step-instruction-text");
+
+          // Update UI Text Element Cards
+          destinationTitle.textContent = serverData.title;
+          destinationCategory.textContent = "Parsed Campus Venue";
+          walkTime.textContent = serverData.duration;
+          walkDistance.textContent = serverData.distance;
+          
+          // DYNAMICALLY RE-WRITE THE FLOATING MAP LAYOUT OVERLAYS
+          if (document.getElementById("eta-text")) {
+              document.getElementById("eta-text").textContent = serverData.duration;
+          }
+          if (document.getElementById("map-distance-pill")) {
+              document.getElementById("map-distance-pill").textContent = serverData.distance;
+          }
+
+          // Unhide the directions list block
+          if (stepsPanel) stepsPanel.classList.remove("hidden");
+          
+          if (stepText) {
+            stepText.innerHTML = Array.isArray(serverData.directions) 
+              ? serverData.directions.join("<br>") 
+              : serverData.instruction;
+          }
+
+          // RENDER MAP TRACKING VECTORS DIRECTLY OVER THE PORTAL
+          // Uses Google's geometry geometry decoder to turn the compressed proxy path string into map coordinates
+          if (serverData.polyline) {
+            renderBackendPolyline(serverData.polyline);
+          }
+        })
+       .catch(err => {
+          console.error("Error connecting to server cluster:", err);
+          const stepsPanel = document.getElementById("navigation-steps-panel");
+        if (stepsPanel) stepsPanel.classList.add("hidden");
+      });
+    }
 
     document.querySelectorAll(".quick-access").forEach(button => {
       button.addEventListener("click", () => {
@@ -924,28 +923,25 @@
 
     searchInput.addEventListener("keydown", event => {
       if (event.key !== "Enter") return;
+      const value = searchInput.value.trim();
+      if (!value) return; // Do nothing if there is search input
 
-      const value = searchInput.value.toLowerCase();
-
-      if (value.includes("matrix")) updateDestination("matrix");
-      else if (value.includes("fnb")) updateDestination("fnb");
-      else if (value.includes("solomon")) updateDestination("solomon");
-      else if (value.includes("science")) updateDestination("science");
-      else if (value.includes("museum") || value.includes("wam")) updateDestination("wam");
-      else if (value.includes("old mutual")) updateDestination("oldMutual");
+      // Automatically formats and routes the query parameter keys directly to the server
+      updateDestination(value);
     });
 
-    document.getElementById("recenter-button").addEventListener("click", () => {
-      const map = document.getElementById("map");
-      map.animate(
-        [
-          { transform: "scale(1)" },
-          { transform: "scale(1.015)" },
-          { transform: "scale(1)" }
-        ],
-        { duration: 350, easing: "ease-out" }
-      );
-    });
+    // Recenter button is optional in the current UI.
+    // If it is added later, it will safely control the Google Map instance.
+    const recenterButton = document.getElementById("recenter-button");
+
+    if (recenterButton) {
+      recenterButton.addEventListener("click", () => {
+        if (!map) return;
+
+        map.setCenter({ lat: -26.1906, lng: 28.0286 });
+        map.setZoom(16);
+      });
+    }
 
     const gpsPill = document.getElementById("gps-pill");
     const gpsText = document.getElementById("gps-text");
@@ -1026,6 +1022,13 @@
       });
     }
 
+    if (cancelNavBtn) {
+    cancelNavBtn.addEventListener("click", () => {
+        const stepsPanel = document.getElementById("navigation-steps-panel");
+        if (stepsPanel) stepsPanel.classList.add("hidden");
+    });
+}
+
     function runEmergencyFilter(selectedType) {
       const filterButtons = [filterMedicalBtn, filterSecurityBtn, filterContactsBtn];
 
@@ -1033,7 +1036,7 @@
       filterButtons.forEach(btn => {
         if (!btn) return;
         
-        // 🔴 FIX 1: Keep 'lg:hidden' appended to the contacts chip so it stays invisible on desktop
+        // Keep 'lg:hidden' appended to the contacts chip so it stays invisible on desktop
         const desktopHideClass = (btn === filterContactsBtn) ? " lg:hidden" : "";
 
         if ((selectedType === "medical" && btn === filterMedicalBtn) ||
