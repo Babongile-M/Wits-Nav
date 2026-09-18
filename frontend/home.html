@@ -810,43 +810,34 @@
 
     // Converts the encoded polyline returned by the Railway backend into
     // coordinates that Google Maps can draw on the live map.
-    function renderBackendPolyline(encodedPolyline) {
-      if (!encodedPolyline) return;
-
-      if (!window.google || !google.maps || !google.maps.geometry || !directionsRenderer) {
-        pendingPolyline = encodedPolyline;
+    // Renders OSRM path coordinates directly on the Google Map using a Polyline
+    function renderBackendPolyline(pathCoordinates) {
+      if (!pathCoordinates || pathCoordinates.length === 0) return;
+      if (!window.google || !google.maps || !map) {
+        pendingPolyline = pathCoordinates;
         return;
       }
 
-      const decodedPathVectors = google.maps.geometry.encoding.decodePath(encodedPolyline);
+      // Clear any existing polyline line
+      if (window.activeRoutePolyline) {
+        window.activeRoutePolyline.setMap(null);
+      }
 
-      // directionsRenderer.setOptions({
-      //   polylineOptions: {
-      //     strokeColor: "#ffb81c",
-      //     strokeWeight: 5
-      //   }
-      // });
-
-      // DirectionsRenderer expects a DirectionsResult. Provide the
-      // backend's decoded overview path without making another Google
-      // Directions request from the browser.
-      directionsRenderer.setDirections({
-        request: {
-          origin: { lat: -26.1906, lng: 28.0286 },
-          destination: { lat: -26.1906, lng: 28.0286 },
-          travelMode: google.maps.TravelMode.WALKING
-        },
-        routes: [{
-          bounds: new google.maps.LatLngBounds(),
-          copyrights: "",
-          legs: [],
-          overview_path: decodedPathVectors,
-          overview_polyline: encodedPolyline,
-          summary: "",
-          warnings: [],
-          waypoint_order: []
-        }]
+      // Create new Polyline using OSRM [{lat, lng}] array directly
+      window.activeRoutePolyline = new google.maps.Polyline({
+        path: pathCoordinates,
+        geodesic: true,
+        strokeColor: "#ffb81c", // Official Wits Gold branding accent
+        strokeOpacity: 0.9,
+        strokeWeight: 5
       });
+
+      window.activeRoutePolyline.setMap(map);
+
+      // Auto-center and zoom map bounds to fit the route
+      const bounds = new google.maps.LatLngBounds();
+      pathCoordinates.forEach(coord => bounds.extend(coord));
+      map.fitBounds(bounds);
     }
 
     function updateDestination(searchInputString) {
@@ -892,8 +883,9 @@
 
           // RENDER MAP TRACKING VECTORS DIRECTLY OVER THE PORTAL
           // Uses Google's geometry geometry decoder to turn the compressed proxy path string into map coordinates
-          if (serverData.polyline) {
-            renderBackendPolyline(serverData.polyline);
+          // Passes OSRM path coordinates array directly to the map renderer
+          if (serverData.pathCoordinates) {
+              renderBackendPolyline(serverData.pathCoordinates);
           }
         })
        .catch(err => {
