@@ -1,0 +1,92 @@
+ html, body {
+    min-height: 100%;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+body {
+    min-height: 100dvh;
+    overflow-x: hidden;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+button,
+input,
+select {
+    font: inherit;
+}
+
+.map-grid-pattern {
+    background-color: #eef2f3;
+    background-image:
+    linear-gradient(rgba(255,255,255,.8) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.8) 1px, transparent 1px),
+    linear-gradient(35deg, transparent 46%, rgba(148,163,184,.14) 47%, rgba(148,163,184,.14) 53%, transparent 54%);
+    background-size: 42px 42px, 42px 42px, 180px 180px;
+}
+
+.map-road {
+    position: absolute;
+    background: rgba(255,255,255,.9);
+    border: 1px solid rgba(148,163,184,.25);
+    border-radius: 999px;
+    transform-origin: center;
+}
+
+.map-building {
+    position: absolute;
+    background: #dbe4df;
+    border: 1px solid #c5d0cb;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(15,23,42,.05);
+}
+
+.map-green {
+    position: absolute;
+    background: #dcebdc;
+    border: 1px solid #c8dfc8;
+    border-radius: 10px;
+}
+
+@keyframes pulse-ring {
+    0%, 100% { transform: scale(.92); opacity: .55; }
+    50% { transform: scale(1.45); opacity: .15; }
+}
+
+.pulse-ring {
+    animation: pulse-ring 2.4s ease-in-out infinite;
+}
+
+@keyframes route-dash {
+    to { stroke-dashoffset: -24; }
+}
+
+.route-line {
+    animation: route-dash 1.1s linear infinite;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+@media (max-width: 767px) {
+    .mobile-map {
+    min-height: 48vh;
+    }
+}
+
+@media (min-width: 768px) {
+    .desktop-map {
+    min-height: 560px;
+    }
+}
