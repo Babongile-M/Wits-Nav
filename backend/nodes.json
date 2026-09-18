@@ -1,10 +1,66 @@
 [
   {
+    "id": "gate 9",
+    "name": "WITS ENTRANCE 9",
+    "aliases": ["gate 9","entrance 9", "WITS Entrance 9"],
+    "lat": -26.192576,
+    "lng": 28.0244157
+  },
+  {
+    "id": "gate 10",
+    "name": "WITS Entrance 10",
+    "aliases": ["gate 10","Entrance 10","WITS Entrance 10"],
+    "lat": -26.1930595,
+    "lng": 28.0287068
+  },
+  {
+    "id": "WITS Yale Road Gate",
+    "name": "WITS Yale Road Gate",
+    "aliases": ["Yale Road Gate","WITS Yale Road Gate"],
+    "lat": -26.1870062,
+    "lng": 28.02789
+  },
+  {
+    "id": "barnato",
+    "name": "Barnato Hall",
+    "aliases": ["barnato","Barnato Hall"],
+    "lat": -26.1898349,
+    "lng": 28.020852
+  },
+  {
+    "id": "Mens-res",
+    "name": "Mens Hall of Residence",
+    "aliases": ["Mens-res","Mens Hall of Residence"],
+    "lat": -26.1889931,
+    "lng": 28.028769
+  },
+  {
+    "id": "sunnyside",
+    "name": "Sunnyside Residence",
+    "aliases": ["sunnyside", "Sunnyside Residence"],
+    "lat": -26.1900216,
+    "lng": 28.0308648
+  },
+  {
+    "id": "jubilee",
+    "name": "Wits University Jubilee Hall",
+    "aliases": ["jubilee","jubilee hall","Wits University Jubilee Hall"],
+    "lat": -26.1887267,
+    "lng": 28.0315461
+  },
+  {
+    "id": "david-wenster",
+    "name": "David Webster Hall of Residence",
+    "aliases": ["david webster","David Webster Hall of Residence","webster"],
+    "lat": -26.1868342,
+    "lng": 28.0236272
+  },
+  {
     "id": "wss",
     "name": "Wits Science Stadium",
     "aliases": ["wss", "wits science stadium"],
-    "lat": -26.1924,
-    "lng": 28.0268
+    "lat": -26.1906621,
+    "lng": 28.0253398
   },
   {
     "id": "smh",
@@ -16,15 +72,15 @@
       "solomon mahlangu house",
       "senate house"
     ],
-    "lat": -26.1929,
-    "lng": 28.0306
+    "lat": -26.192205,
+    "lng": 28.0297407
   },
   {
     "id": "fnb",
     "name": "FNB Building",
     "aliases": ["fnb", "fnb building"],
-    "lat": -26.1899,
-    "lng": 28.0242
+    "lat": -26.1889235,
+    "lng": 28.0265089
   },
   {
     "id": "cm",
@@ -34,15 +90,8 @@
       "chamber of mines",
       "chamber of mines building"
     ],
-    "lat": -26.1912,
-    "lng": 28.0315
-  },
-  {
-    "id": "cb",
-    "name": "Central Block",
-    "aliases": ["cb", "central block"],
-    "lat": -26.1918,
-    "lng": 28.0300
+    "lat": -26.1914641,
+    "lng": 28.0266785
   },
   {
     "id": "matrix",
@@ -53,59 +102,49 @@
       "matrix student centre",
       "the matrix student centre"
     ],
-    "lat": -26.1908,
-    "lng": 28.0285
+    "lat": -26.1903474,
+    "lng": 28.0299062
   },
   {
     "id": "oldmutual",
     "name": "Old Mutual Building",
     "aliases": ["oldmutual", "old mutual", "old mutual building"],
-    "lat": -26.1915,
-    "lng": 28.0305
+    "lat": -26.1896066,
+    "lng": 28.0292964
   },
   {
     "id": "arm",
     "name": "ARM Building",
     "aliases": ["arm", "arm building"],
-    "lat": null,
-    "lng": null
-  },
-  {
-    "id": "south-west-engineering",
-    "name": "South West Engineering Building",
-    "aliases": [
-      "south west engineering",
-      "south west engineering building"
-    ],
-    "lat": null,
-    "lng": null
+    "lat": -26.1916196,
+    "lng": 28.0270148
   },
   {
     "id": "robert-sobukwe",
     "name": "Robert Sobukwe",
     "aliases": ["robert sobukwe", "robert sobukwe building"],
-    "lat": null,
-    "lng": null
+    "lat": -26.1921065,
+    "lng": 28.0305018
   },
   {
     "id": "bridge",
     "name": "Bridge",
     "aliases": ["bridge"],
-    "lat": null,
-    "lng": null
+    "lat": -26.1915989,
+    "lng": 28.0272411
   },
   {
-    "id": "emergency-path",
-    "name": "No Vehicle Emergency Path",
-    "aliases": ["no vehicle emergency path"],
-    "lat": null,
-    "lng": null
+    "id": "ols",
+    "name": "Oppenheimer Life Sciences Building",
+    "aliases": ["OS","OLS","Oppenheimer Life Sciences Building"],
+    "lat": -26.1915246,
+    "lng": 28.0294821
   },
   {
-    "id": "jojo-tank",
-    "name": "Jojo Tank",
-    "aliases": ["jojo tank", "jojo"],
-    "lat": null,
-    "lng": null
+    "id": "msl",
+    "name": "Mathematical Sciences Laboratories",
+    "aliases": ["MSL","msl","Mathematical Science Laboratories"],
+    "lat": -26.1905612,
+    "lng": 28.0268317
   }
 ]
