@@ -2,41 +2,47 @@
   {
     "id": "gate 9",
     "name": "WITS ENTRANCE 9",
-    "aliases": ["gate 9","entrance 9", "WITS Entrance 9"],
+    "category": "entrance",
+    "aliases": ["gate 9", "entrance 9", "WITS Entrance 9"],
     "lat": -26.192576,
     "lng": 28.0244157
   },
   {
     "id": "gate 10",
     "name": "WITS Entrance 10",
-    "aliases": ["gate 10","Entrance 10","WITS Entrance 10"],
+    "category": "entrance",
+    "aliases": ["gate 10", "Entrance 10", "WITS Entrance 10"],
     "lat": -26.1930595,
     "lng": 28.0287068
   },
   {
     "id": "WITS Yale Road Gate",
     "name": "WITS Yale Road Gate",
-    "aliases": ["Yale Road Gate","WITS Yale Road Gate"],
+    "category": "entrance",
+    "aliases": ["Yale Road Gate", "WITS Yale Road Gate"],
     "lat": -26.1870062,
     "lng": 28.02789
   },
   {
     "id": "barnato",
     "name": "Barnato Hall",
-    "aliases": ["barnato","Barnato Hall"],
+    "category": "residence",
+    "aliases": ["barnato", "Barnato Hall"],
     "lat": -26.1898349,
     "lng": 28.020852
   },
   {
     "id": "Mens-res",
     "name": "Mens Hall of Residence",
-    "aliases": ["Mens-res","Mens Hall of Residence"],
+    "category": "residence",
+    "aliases": ["Mens-res", "Mens Hall of Residence"],
     "lat": -26.1889931,
     "lng": 28.028769
   },
   {
     "id": "sunnyside",
     "name": "Sunnyside Residence",
+    "category": "residence",
     "aliases": ["sunnyside", "Sunnyside Residence"],
     "lat": -26.1900216,
     "lng": 28.0308648
@@ -44,14 +50,16 @@
   {
     "id": "jubilee",
     "name": "Wits University Jubilee Hall",
-    "aliases": ["jubilee","jubilee hall","Wits University Jubilee Hall"],
+    "category": "residence",
+    "aliases": ["jubilee", "jubilee hall", "Wits University Jubilee Hall"],
     "lat": -26.1887267,
     "lng": 28.0315461
   },
   {
-    "id": "david-wenster",
+    "id": "david-webster",
     "name": "David Webster Hall of Residence",
-    "aliases": ["david webster","David Webster Hall of Residence","webster"],
+    "category": "residence",
+    "aliases": ["david webster", "David Webster Hall of Residence", "webster"],
     "lat": -26.1868342,
     "lng": 28.0236272
   },
@@ -136,14 +144,14 @@
   {
     "id": "ols",
     "name": "Oppenheimer Life Sciences Building",
-    "aliases": ["OS","OLS","Oppenheimer Life Sciences Building"],
+    "aliases": ["OS", "OLS", "Oppenheimer Life Sciences Building"],
     "lat": -26.1915246,
     "lng": 28.0294821
   },
   {
     "id": "msl",
     "name": "Mathematical Sciences Laboratories",
-    "aliases": ["MSL","msl","Mathematical Science Laboratories"],
+    "aliases": ["MSL", "msl", "Mathematical Science Laboratories"],
     "lat": -26.1905612,
     "lng": 28.0268317
   }

@@ -61,14 +61,17 @@ function hasCoordinates(location) {
     );
 }
 
-// Return searchable locations that have valid coordinates. Used for recomendations as well
+// Search suggestions and map locations.
 server.get("/locations", (req, res) => {
     const locations = nodes
         .filter(hasCoordinates)
         .map(node => ({
             id: node.id,
             name: node.name,
-            aliases: node.aliases || []
+            aliases: node.aliases || [],
+            category: node.category || "building",
+            lat: node.lat,
+            lng: node.lng
         }));
 
     res.json(locations);

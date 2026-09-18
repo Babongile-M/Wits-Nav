@@ -12,6 +12,11 @@ let watchId = null;
 let activeDestination = null; // Tracks current route target dynamically
 let activeRoutePolyline = null; // Global hnadle for drawn route map line
 
+let categoryMarkers = [];
+let activeMapCategory = null;
+let categoryRequestController = null;
+let categoryInfoWindow = null;
+
 const searchInput = document.getElementById("search-input");
 const filterPanel = document.getElementById("filter-panel");
 
@@ -148,7 +153,7 @@ function trackUserLocation() {
         updateStepFromGPS(position);
 
         // Center the map view to the user's live location before any destination is searched for
-        if (!activeDestination) {
+        if (!activeDestination && !activeMapCategory) {
             map.setCenter(userPos);
         }
     },
@@ -196,6 +201,7 @@ let routeRequestController = null;
 
 async function fetchLiveRoute(lat, lng, destination) {
     // Prevent old route instructions from continuing while the new route loads
+    clearCategoryMarkers();
     resetStepNavigation();
 
     if (stepsPanel) stepsPanel.classList.add("hidden");
@@ -598,10 +604,225 @@ async function loadLocationSuggestions() {
 
 loadLocationSuggestions();
 
+function clearCategoryMarkers() {
+    if (categoryRequestController) {
+        categoryRequestController.abort();
+        categoryRequestController = null;
+    }
+
+    categoryMarkers.forEach(marker => marker.setMap(null));
+    categoryMarkers = [];
+
+    if (categoryInfoWindow) {
+        categoryInfoWindow.close();
+    }
+
+    activeMapCategory = null;
+}
+
+function showCategoryMessage(message) {
+    setInstructionsCardMode(true, "Map locations");
+
+    document.getElementById("instructions-panel-heading").textContent =
+        "Map locations";
+
+    stepInstructionText.textContent = message;
+    stepsPanel.classList.remove("hidden");
+}
+
+async function showLocationCategory(category, title) {
+    if (!map || !window.google?.maps) {
+        showCategoryMessage("The map is still loading. Please try again.");
+        return;
+    }
+
+    clearCategoryMarkers();
+
+    // Stop any route request so it cannot draw a route afterwards.
+    if (routeRequestController) {
+        routeRequestController.abort();
+        routeRequestController = null;
+    }
+
+    activeDestination = null;
+    resetStepNavigation();
+
+    if (activeRoutePolyline) {
+        activeRoutePolyline.setMap(null);
+        activeRoutePolyline = null;
+    }
+
+    activeMapCategory = category;
+
+    searchInput.value = "";
+    searchInput.blur();
+    document.getElementById("location-suggestions")?.replaceChildren();
+
+    destinationTitle.textContent = title;
+    destinationCategory.textContent = "Saved campus locations";
+
+    if (walkTime) walkTime.textContent = "—";
+    if (walkDistance) walkDistance.textContent = "—";
+    if (etaText) etaText.textContent = "—";
+    if (mapDistancePill) mapDistancePill.textContent = "—";
+    if (routeLabel) routeLabel.textContent = title;
+
+    showCategoryMessage(`Loading ${title.toLowerCase()}...`);
+
+    const controller = new AbortController();
+    categoryRequestController = controller;
+
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+    try {
+        const response = await fetch(`${SERVER_URL}/locations`, {
+            signal: controller.signal,
+            headers: { Accept: "application/json" }
+        });
+
+        if (!response.ok) {
+            throw new Error("Locations could not be loaded.");
+        }
+
+        const locations = await response.json();
+
+        // Ignore an old request after another category or search is selected.
+        if (categoryRequestController !== controller) return;
+
+        if (!Array.isArray(locations)) {
+            throw new Error("Invalid locations response.");
+        }
+
+        const matches = locations.filter(location =>
+            location.category === category &&
+            typeof location.name === "string" &&
+            Number.isFinite(location.lat) &&
+            Number.isFinite(location.lng) &&
+            Math.abs(location.lat) <= 90 &&
+            Math.abs(location.lng) <= 180
+        );
+
+        if (matches.length === 0) {
+            showCategoryMessage(
+                `No ${title.toLowerCase()} have been saved with coordinates yet.`
+            );
+            return;
+        }
+
+        const bounds = new google.maps.LatLngBounds();
+
+        if (!categoryInfoWindow) {
+            categoryInfoWindow = new google.maps.InfoWindow();
+        }
+
+        matches.forEach(location => {
+            const position = {
+                lat: location.lat,
+                lng: location.lng
+            };
+
+            const marker = new google.maps.Marker({
+                map,
+                position,
+                title: location.name,
+
+                // Display the venue name beneath its marker.
+                label: {
+                    text: location.name,
+                    color: "#002855",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    className: "venue-marker-label"
+                },
+
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: category === "residence"
+                        ? "#ffb81c"
+                        : "#059669",
+                    fillOpacity: 1,
+                    strokeColor: "#ffffff",
+                    strokeWeight: 2,
+                    labelOrigin: new google.maps.Point(0, 3)
+                }
+            });
+
+            // Tapping a marker shows its name; it does not start a route.
+            marker.addListener("click", () => {
+                const content = document.createElement("div");
+                content.textContent = location.name;
+                content.style.fontWeight = "700";
+                content.style.color = "#002855";
+
+                categoryInfoWindow.setContent(content);
+                categoryInfoWindow.open({
+                    map,
+                    anchor: marker
+                });
+            });
+
+            categoryMarkers.push(marker);
+            bounds.extend(position);
+        });
+
+        if (matches.length === 1) {
+            map.setCenter({
+                lat: matches[0].lat,
+                lng: matches[0].lng
+            });
+            map.setZoom(17);
+        } else {
+            map.fitBounds(bounds, 80);
+        }
+
+        destinationCategory.textContent =
+            `${matches.length} saved locations`;
+
+        showCategoryMessage(
+            `Showing ${matches.length} ${title.toLowerCase()}. ` +
+            "Tap a marker to see its name."
+        );
+    } catch (error) {
+        if (categoryRequestController !== controller) return;
+
+        clearCategoryMarkers();
+
+        showCategoryMessage(
+            error.name === "AbortError"
+                ? "Loading locations took too long. Please try again."
+                : "Could not load the locations. Please try again."
+        );
+    } finally {
+        clearTimeout(timeoutId);
+
+        if (categoryRequestController === controller) {
+            categoryRequestController = null;
+        }
+    }
+}
+
 document.querySelectorAll(".quick-access").forEach(button => {
     button.addEventListener("click", () => {
-    searchInput.value = button.dataset.place;
-    searchInput.focus();
+        const place = button.dataset.place;
+
+        if (place === "Residences") {
+            showLocationCategory("residence", "Residences");
+            return;
+        }
+
+        if (place === "Campus Entrances") {
+            showLocationCategory("entrance", "Campus Entrances");
+            return;
+        }
+
+        if (place === "Emergency Services") {
+            const emergencyButton =
+                document.getElementById("nav-emergency-btn") ||
+                document.getElementById("sidebar-emergency-btn");
+
+            emergencyButton?.click();
+        }
     });
 });
 
@@ -744,34 +965,43 @@ if (sidebarEmergencyBtn) {
 
 if (cancelNavBtn) {
     cancelNavBtn.addEventListener("click", () => {
-    activeDestination = null;
+        clearCategoryMarkers();
+        activeDestination = null;
 
-    if (routeRequestController) {
-        routeRequestController.abort();
-        routeRequestController = null;
-    }
+        if (destinationTitle) {
+            destinationTitle.textContent = "No destination selected";
+        }
 
-    resetStepNavigation();
+        if (destinationCategory) {
+            destinationCategory.textContent = "Search or choose Quick Access";
+        }
 
-    // Remove the route line from the map.
-    if (activeRoutePolyline) {
-        activeRoutePolyline.setMap(null);
-        activeRoutePolyline = null;
-    }
+        if (routeRequestController) {
+            routeRequestController.abort();
+            routeRequestController = null;
+        }
 
-    if (routeLabel) routeLabel.textContent = "No active route";
-    if (walkTime) walkTime.textContent = "—";
-    if (walkDistance) walkDistance.textContent = "—";
-    if (etaText) etaText.textContent = "—";
-    if (mapDistancePill) mapDistancePill.textContent = "—";
+        resetStepNavigation();
 
-    if (stepsPanel) stepsPanel.classList.add("hidden");
-    searchInput.value = "";
+        // Remove the route line from the map.
+        if (activeRoutePolyline) {
+            activeRoutePolyline.setMap(null);
+            activeRoutePolyline = null;
+        }
 
-    if (userMarker) {
-        map.setCenter(userMarker.getPosition());
-        map.setZoom(16); 
-    }
+        if (routeLabel) routeLabel.textContent = "No active route";
+        if (walkTime) walkTime.textContent = "—";
+        if (walkDistance) walkDistance.textContent = "—";
+        if (etaText) etaText.textContent = "—";
+        if (mapDistancePill) mapDistancePill.textContent = "—";
+
+        if (stepsPanel) stepsPanel.classList.add("hidden");
+        searchInput.value = "";
+
+        if (userMarker) {
+            map.setCenter(userMarker.getPosition());
+            map.setZoom(16); 
+        }
     });
 }
 
