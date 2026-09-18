@@ -42,26 +42,43 @@ server.listen(PORT, "0.0.0.0", () => {
 });
 
 server.get("/buildings", async (req, res) => {
-    const { from, to } = req.query;
+    const { from, to, userLat, userLng } = req.query;
 
-    // Boundary check parameters verification block
-    if (!from || !to) {
-        return res.status(400).json({ error: "Missing navigation boundaries" });
+    // Must have a destination 'to' parameter
+    if (!to) {
+        return res.status(400).json({ error: "Missing destination boundary ('to' parameter required)." });
     }
 
-    const cleanFrom = from.toLowerCase().trim();
-    const cleanTo = to.toLowerCase().trim();
+    let startLocation = null;
 
-    // Map keywords to precise lat/lng objects
-    const startLocation = witsCoordinates[cleanFrom];
+    // Check if user sent live GPS coordinates
+    if (userLat && userLng) {
+        const parsedLat = parseFloat(userLat);
+        const parsedLng = parseFloat(userLng);
+
+        if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+            startLocation = { lat: parsedLat, lng: parsedLng };
+        }
+    }
+
+    // If no live GPS coordinates provided, fall back to lookup by 'from' acronym
+    if (!startLocation) {
+        if (!from) {
+            return res.status(400).json({ error: "Missing origin boundary. Provide 'from' or 'userLat' & 'userLng'." });
+        }
+        const cleanFrom = from.toLowerCase().trim();
+        startLocation = witsCoordinates[cleanFrom];
+    }
+
+    const cleanTo = to.toLowerCase().trim();
     const endLocation = witsCoordinates[cleanTo];
 
     if (!startLocation || !endLocation) {
-        return res.status(400).json({ error: "One or both campus locations were not found in lookup dictionary." });
+        return res.status(400).json({ error: "One or both campus locations were not found." });
     }
 
     try {
-        // Query free OSRM walking engine directly (Format: lng,lat;lng,lat)
+        // Query OSRM walking engine directly (Format: lng,lat;lng,lat)
         const osrmUrl = `https://router.project-osrm.org/route/v1/foot/${startLocation.lng},${startLocation.lat};${endLocation.lng},${endLocation.lat}?overview=full&steps=true&geometries=geojson`;
         
         const osrmResponse = await axios.get(osrmUrl);
@@ -91,7 +108,7 @@ server.get("/buildings", async (req, res) => {
             duration: `${Math.round(route.duration / 60)} mins`,
             distance: `${Math.round(route.distance)} m`,
             directions: customInstructionsList,
-            pathCoordinates: pathCoordinates // Coordinate array ready for google.maps.Polyline
+            pathCoordinates: pathCoordinates
         });
 
     } catch (error) {

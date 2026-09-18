@@ -723,6 +723,9 @@
     let selectedPlace = "oldMutual";
     let navigating = false;
 
+    let userMarker = null;
+    let watchId = null;
+
     const searchInput = document.getElementById("search-input");
     const filterPanel = document.getElementById("filter-panel");
 
@@ -777,26 +780,13 @@
       map = new google.maps.Map(document.getElementById("google-campus-map"), {
         zoom: 16,
         center: witsCenterPoint,
+        gestureHandling: "greedy", // Disables "Use ctrl + scroll to zoom"
         disableDefaultUI: true, // Hides native commercial junk maps UI
         clickableIcons: false,
-        styles: [
-          { 
-            featureType: "poi.business",
-            elementType: "labels", 
-            stylers: [{ "visibility": "off" }] 
-          }
-        ]
       });
 
-      directionsService = new google.maps.DirectionsService();
-      directionsRenderer = new google.maps.DirectionsRenderer({
-        map: map,
-        suppressMarkers: false,
-        polylineOptions: {
-          strokeColor: "#ffb81c", // Official Wits Gold branding accent
-          strokeWeight: 5
-        }
-      });
+      // Start live tracking as soon as map loads
+      trackUserLocation();
       
       console.log("Google Maps loaded successfully.");
 
@@ -840,18 +830,76 @@
       map.fitBounds(bounds);
     }
 
+    // Tracks user's live location
+    function trackUserLocation() {
+      // Check if the browser supports Geolocation
+      if (!navigator.geolocation) {
+        console.warn("Geolocation is not supported by your browser.");
+        return;
+      }
+
+      // Watch position continuously as the user walks
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const userPos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+
+          // 1. Create marker if it doesn't exist yet
+          if (!userMarker) {
+            userMarker = new google.maps.Marker({
+            position: userPos,
+            map: map,
+            title: "Your Location",
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 8,
+              fillColor: "#4285F4", // Google Blue dot
+              fillOpacity: 1,
+              strokeColor: "#FFFFFF",
+              strokeWeight: 2
+            }
+          });
+         } else {
+            // 2. Move existing marker to new location
+            userMarker.setPosition(userPos);
+          }
+        },
+        (error) => {
+          console.warn("Location access denied or unavailable:", error.message);
+        },
+        {
+          enableHighAccuracy: true, // Use GPS instead of IP lookup
+          maximumAge: 10000,        // Accept cached position up to 10s old
+          timeout: 5000
+        }
+      );
+    }
+
     function updateDestination(searchInputString) {
       if (!searchInputString) return;
 
-      // Solomon Mahlangu House remains the default start boundary for this MVP
-      const origin = "Solomon Mahlangu House";
       const destination = searchInputString.trim();
-
       selectedPlace = searchInputString;
+
+      // Build backend URL dynamically:
+      // 1. Prefer live GPS coordinates if available from userMarker
+      // 2. Fall back to "Solomon Mahlangu House" if GPS is disabled or pending
+      let fetchUrl = `${SERVER_URL}/buildings?to=${encodeURIComponent(destination)}`;
+
+      if (userMarker && userMarker.getPosition()) {
+        const lat = userMarker.getPosition().lat();
+        const lng = userMarker.getPosition().lng();
+        fetchUrl += `&userLat=${lat}&userLng=${lng}`;
+      } else {
+        const origin = "Solomon Mahlangu House";
+        fetchUrl += `&from=${encodeURIComponent(origin)}`;
+      }
 
       // EXECUTE GOOGLE WALKING PATH CALCULATIONS
       // SEND REQUEST STRAIGHT TO THE SECURABLE CLOUD PROXY/SERVER
-      fetch(`${SERVER_URL}/buildings?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(destination)}`).then(response => {
+      fetch(fetchUrl).then(response => {
         if (!response.ok) throw new Error("Backend proxy lookup failed");
         return response.json();
         }).then(serverData => {
@@ -859,10 +907,10 @@
           const stepText = document.getElementById("step-instruction-text");
 
           // Update UI Text Element Cards
-          destinationTitle.textContent = serverData.title;
-          destinationCategory.textContent = "Parsed Campus Venue";
-          walkTime.textContent = serverData.duration;
-          walkDistance.textContent = serverData.distance;
+          if (destinationTitle) destinationTitle.textContent = serverData.title;
+          if (destinationCategory) destinationCategory.textContent = "Parsed Campus Venue";
+          if (walkTime) walkTime.textContent = serverData.duration;
+          if (walkDistance) walkDistance.textContent = serverData.distance;
           
           // DYNAMICALLY RE-WRITE THE FLOATING MAP LAYOUT OVERLAYS
           if (document.getElementById("eta-text")) {
