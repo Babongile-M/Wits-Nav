@@ -74,6 +74,7 @@ server.get("/buildings", async (req, res) => {
 
     if (!endLocation) {
         return res.status(404).json({
+            code: "LOCATION_NOT_FOUND",
             error: "Destination not found. Try WSS, SMH, FNB, CM or Matrix."
         });
     }

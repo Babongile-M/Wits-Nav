@@ -246,6 +246,7 @@
                 <span class="sr-only">Search campus</span>
                 <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
                 <input id="search-input"
+                      enterkeyhint="search"
                        type="search"
                        placeholder="Search buildings, venues, residences..."
                        class="w-full h-12 sm:h-14 bg-white border border-slate-200 rounded-xl sm:rounded-2xl pl-12 pr-4 text-sm sm:text-base outline-none shadow-subtle focus:ring-2 focus:ring-wits-900/20 focus:border-wits-700 transition">
@@ -259,7 +260,7 @@
             <!-- Route Directions Card; Hidden by default -->
             <div id="navigation-steps-panel" class="hidden mt-3 space-y-2">
               <div class="flex justify-between items-center px-1">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Route Progress</span>
+                <span id="instructions-panel-heading" class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Route Progress</span>
                 <button id="cancel-navigation-btn" class="text-[10px] font-bold text-rose-600 hover:text-rose-700 transition">
                   Clear Route
                 </button>
@@ -269,15 +270,24 @@
               <div id="live-step-card" class="bg-blue-50 border border-blue-100 rounded-2xl p-4 shadow-subtle">
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 rounded-xl bg-wits-900 text-wits-gold flex items-center justify-center flex-shrink-0">
-                    <i data-lucide="corner-up-right" class="w-5 h-5"></i>
+                    <span id="navigation-card-icon">
+                      <i data-lucide="corner-up-right" class="w-5 h-5"></i>
+                    </span>
+
+                    <span id="search-card-icon" class="hidden">
+                      <i data-lucide="search" class="w-5 h-5"></i>
+                    </span>
                   </div>
+
                   <div class="flex-1 min-w-0">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-wits-700">Next step</p>
-                    <p id="step-instruction-text" class="text-sm font-semibold text-slate-800 mt-0.5">
-                      Head north past Senate House stairs.
+                    <p id="instructions-card-heading" class="text-[10px] font-bold uppercase tracking-wider text-wits-700">Next step</p>
+                    <p id="step-instruction-text" 
+                      role="status" 
+                      aria-live="polite"
+                      aria-atomic="true"
+                      class="text-sm font-semibold text-slate-800 mt-0.5">
                     </p>
                   </div>
-                  <span class="text-xs font-extrabold text-wits-900 bg-white px-2.5 py-1 rounded-lg shadow-sm">65 m</span>
                 </div>
               </div>
             </div>
@@ -889,6 +899,20 @@
     fetchLiveRoute(lat, lng, activeDestination);
 }
 
+function setInstructionsCardMode(isError, heading = "Search message") {
+    document.getElementById("navigation-card-icon")
+        .classList.toggle("hidden", isError);
+
+    document.getElementById("search-card-icon")
+        .classList.toggle("hidden", !isError);
+
+    document.getElementById("instructions-panel-heading")
+        .textContent = isError ? "Search result" : "Route Progress";
+
+    document.getElementById("instructions-card-heading")
+        .textContent = isError ? heading : "Next step";
+}
+
 // Dedicated function handling API calls and map line drawing
 let routeRequestController = null;
 
@@ -927,7 +951,12 @@ async function fetchLiveRoute(lat, lng, destination) {
           throw new Error("The route request timed out. Please try again.");
       }
       if (!response.ok) {
-        throw new Error(serverData.error || `Navigation server returned ${response.status}`);
+        const error = new Error(
+          serverData.error || "Unable to find a route. Please try again."
+        );
+
+        error.code = serverData.code;
+        throw error;
       }
       if (!Array.isArray(serverData.pathCoordinates) || serverData.pathCoordinates.length < 2) {
         throw new Error("The navigation server returned an incomplete route.");
@@ -948,23 +977,71 @@ async function fetchLiveRoute(lat, lng, destination) {
       if (navButtonText) navButtonText.textContent = "Navigation active";
 
       // Unhide step container instruction blocks
-      if (stepsPanel) stepsPanel.classList.remove("hidden");
       startStepNavigation(serverData.navigationSteps);
+
+      // Restore the normal heading and navigation icon.
+      setInstructionsCardMode(false);
+
+      if (stepsPanel) stepsPanel.classList.remove("hidden");
 
           // Draw vector polyline on the live map canvas
           if (serverData.pathCoordinates) {
             renderBackendPolyline(serverData.pathCoordinates);
           }
     } catch (err) {
-      // A cancelled older request must not overwrite the current screen.
-      if (routeRequestController !== controller) return;
-      if (err.name === "AbortError") {
-        if (navButtonText) navButtonText.textContent = "Route request timed out";
-      } else {
-        if (navButtonText) navButtonText.textContent = "Route unavailable";
-      }
-      if (routeLabel) routeLabel.textContent = err.name === "AbortError" ? "Request timed out" : err.message;
-      console.error("Route request failed:", err);
+    // Ignore requests that were cleared or replaced.
+    if (routeRequestController !== controller) return;
+
+    resetStepNavigation();
+    activeDestination = null;
+
+    if (activeRoutePolyline) {
+        activeRoutePolyline.setMap(null);
+        activeRoutePolyline = null;
+    }
+
+    const notFound = err.code === "LOCATION_NOT_FOUND";
+    const timedOut = controller.signal.aborted;
+
+    let heading;
+    let message;
+
+    if (notFound) {
+        heading = "Location not found";
+        message =
+            "We couldn't find that location.\n" +
+            "Try WSS, SMH, FNB, CM, CB, Matrix or Old Mutual.";
+    } else if (timedOut) {
+        heading = "Taking too long";
+        message =
+            "The route request took too long. Please try searching again.";
+    } else if (err instanceof TypeError) {
+        heading = "Connection problem";
+        message =
+            "We couldn't reach the navigation server. Check your connection and try again.";
+    } else {
+        heading = "Route unavailable";
+        message = err.message || "Please try searching again.";
+    }
+
+    setInstructionsCardMode(true, heading);
+
+    stepInstructionText.style.whiteSpace = "pre-line";
+    stepInstructionText.textContent = message;
+    stepsPanel.classList.remove("hidden");
+
+    if (routeLabel) routeLabel.textContent = "No active route";
+    if (navButtonText) navButtonText.textContent = "Search again";
+    if (destinationTitle) destinationTitle.textContent = "No destination selected";
+    if (destinationCategory) destinationCategory.textContent = "Search for a campus location";
+    if (mapDestinationTitle) mapDestinationTitle.textContent = "No destination selected";
+    if (mapDestinationMeta) mapDestinationMeta.textContent = "";
+    if (walkTime) walkTime.textContent = "—";
+    if (walkDistance) walkDistance.textContent = "—";
+    if (etaText) etaText.textContent = "—";
+    if (mapDistancePill) mapDistancePill.textContent = "—";
+
+    console.error("Route request failed:", err);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -1129,11 +1206,14 @@ function updateStepFromGPS(position) {
     });
 
     searchInput.addEventListener("keydown", event => {
-      if (event.key !== "Enter") return;
-      const value = searchInput.value.trim();
-      if (!value) return; // Do nothing if there is search input
+      if (event.key !== "Enter" || event.isComposing) return;
 
-      // Automatically formats and routes the query parameter keys directly to the server
+      event.preventDefault();
+
+      const value = searchInput.value.trim();
+      if (!value) return;
+
+      searchInput.blur(); // Close the mobile keyboard.
       updateDestination(value);
     });
 
