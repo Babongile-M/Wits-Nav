@@ -67,8 +67,8 @@
     "id": "wss",
     "name": "Wits Science Stadium",
     "aliases": ["wss", "wits science stadium"],
-    "lat": -26.1906621,
-    "lng": 28.0253398
+    "lat": -26.1906348,
+    "lng": 28.0249079
   },
   {
     "id": "smh",
@@ -152,7 +152,7 @@
     "id": "msl",
     "name": "Mathematical Sciences Laboratories",
     "aliases": ["MSL", "msl", "Mathematical Science Laboratories"],
-    "lat": -26.190623,
-    "lng":  28.026365
+    "lat": -26.1905612,
+    "lng": 28.0268317
   }
 ]
