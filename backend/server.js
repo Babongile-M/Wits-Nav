@@ -37,7 +37,7 @@ for (const node of nodes) {
         const existing = locationLookup.get(key);
 
         if (existing && existing.id !== node.id) {
-            throw new Error("Duplicate location alias: ${name}");
+            throw new Error(`Duplicate location alias: ${name}`);
         }
 
         locationLookup.set(key, node);
@@ -147,20 +147,85 @@ server.get("/buildings", async (req, res) => {
             lng: coord[0]
         }));
 
-        // Format turn-by-turn instruction steps into readable strings
-        const customInstructionsList = route.legs[0].steps.map((step, index) => {
-            const streetName = step.name ? ` onto ${step.name}` : "";
-            return `${index + 1}. Walk ${Math.round(step.distance)}m (${step.maneuver.type}${streetName})`;
-        });
+        const rawSteps = route.legs[0].steps;
 
-        // Respond back to frontend with payload
-        res.json({
-            title: endLocation.name,
-            duration: `${Math.round(route.duration / 60)} mins`,
-            distance: `${Math.round(route.distance)} m`,
-            directions: customInstructionsList,
-            pathCoordinates: pathCoordinates
-        });
+        function describeAction(maneuver) {
+            if (maneuver.type === "depart") {
+                return "Follow the highlighted path";
+            }
+
+            if (maneuver.type === "arrive") {
+                return "You have reached the mapped destination";
+            }
+
+            if (maneuver.type === "roundabout" || maneuver.type === "rotary") {
+                return maneuver.exit
+                     ? `At the roundabout, take exit ${maneuver.exit}`
+                    : "Follow the highlighted route around the roundabout";
+            }
+
+            const actions = {
+                "left": "Turn left",
+                "right": "Turn right",
+                "slight left": "Bear left",
+                "slight right": "Bear right",
+                "sharp left": "Turn sharply left",
+                "sharp right": "Turn sharply right",
+                "straight": "Continue straight",
+                "uturn": "Turn around"
+            }
+
+            return actions[maneuver.modifier] || "Continue along the highlighted path";
+        }
+
+        const navigationSteps = rawSteps.map((step, index) => {
+        const nextStep = rawSteps[index + 1];
+
+        // A maneuver happens at the START of its step.
+        // Finish the current step at the NEXT maneuver.
+        const targetCoordinates = nextStep
+            ? nextStep.maneuver.location
+            : step.maneuver.location;
+
+        const isArrival = step.maneuver.type === "arrive";
+        const distance = Math.round(step.distance);
+        const action = describeAction(step.maneuver);
+
+        return {
+            instruction: isArrival
+                ? action
+                : `${action}, then continue for about ${distance} metres.`,
+
+            distanceMeters: distance,
+
+            target: {
+                lat: targetCoordinates[1],
+                lng: targetCoordinates[0]
+            },
+
+            isArrival
+        };
+    });
+
+    // Respond back to frontend with payload
+    res.json({
+    title: endLocation.name || to.toUpperCase(),
+
+    duration: `${Math.max(
+        1,
+        Math.ceil(route.duration / 60)
+    )} mins`,
+
+    distance: `${Math.round(route.distance)} m`,
+
+    // Retained for compatibility with the existing interface.
+    directions: navigationSteps.map(step => step.instruction),
+
+    // New: instructions with GPS targets.
+    navigationSteps,
+
+    pathCoordinates
+});
 
     } catch (error) {
         console.error("Backend Server Error Details:", error.response ? error.response.data : error.message);
