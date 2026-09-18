@@ -635,6 +635,13 @@ const gpsText = document.getElementById("gps-text");
 
 // Tab Switching Logic
 function setActiveTab(activeButton) {
+    // Save the current tab in local browser storage to avoid going back to home tab on refresh
+    // This can still go back to home if no session was stored
+    try {
+        sessionStorage.setItem("witsNavActiveTab", activeButton);
+    } catch (error) {
+        // Tab switching still works if browser storage is unavailable.
+    }
     // Setup mobile nav match list
     const mobileTabs = [navHomeBtn, navSearchBtn, navAbbrevBtn, navEmergencyBtn];
     const targetMobile = document.getElementById(`nav-${activeButton}-btn`);
@@ -662,6 +669,30 @@ function setActiveTab(activeButton) {
             btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-blue-100 hover:bg-white/10 font-medium text-sm transition";
         }
     });
+}
+
+// Restores stored Tab, if any
+function restoreActiveTab() {
+    let savedTab = "home";
+
+    try {
+        savedTab =
+            sessionStorage.getItem("witsNavActiveTab") || "home";
+    } catch (error) {
+        // Use Home tab if browser storage is unavailable.
+    }
+
+    const tabButtons = new Map([
+        ["home", navHomeBtn || sidebarHomeBtn],
+        ["abbrev", navAbbrevBtn || sidebarAbbrevBtn],
+        ["emergency", navEmergencyBtn || sidebarEmergencyBtn]
+    ]);
+
+    const button = tabButtons.get(savedTab) || tabButtons.get("home");
+
+    // Reuse the existing handler to show the screen
+    // and update both navigation menus.
+    if (button) button.click();
 }
 
 if (navHomeBtn) navHomeBtn.addEventListener("click", () => { 
@@ -832,9 +863,8 @@ window.addEventListener("resize", () => {
     }
 });
 
-// ==========================================
-// ABBREVIATIONS SCREEN REAL-TIME FILTER
-// ==========================================
+
+// Abbreviations Tab Card Filter
 function filterAbbreviations(query) {
     const sanitizedQuery = query.trim().toLowerCase();
     const cards = document.querySelectorAll('.abbrev-card');
@@ -852,3 +882,35 @@ function filterAbbreviations(query) {
         }
     });
 }
+
+document.querySelectorAll("[data-route-to]").forEach(button => {
+    button.addEventListener("click", () => {
+        const destination = button.dataset.routeTo?.trim();
+
+        if (!destination) return;
+
+        // Open Home using its existing tab-switching handler.
+        const homeButton = navHomeBtn || sidebarHomeBtn;
+
+        if (homeButton) homeButton.click();
+
+        // Fill the search field and remove previous suggestions.
+        searchInput.value = destination;
+        locationSuggestions.replaceChildren();
+
+        // Avoid opening the mobile keyboard.
+        searchInput.blur();
+
+        // Bring the search area into view.
+        searchInput.scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+        });
+
+        // Automatically request the route.
+        updateDestination(destination);
+    });
+});
+
+// Restore any saved tabs if any, else, go to home as the default
+restoreActiveTab();
