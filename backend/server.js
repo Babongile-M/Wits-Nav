@@ -28,6 +28,12 @@ server.get("/buildings", async (req, res) => {
         return res.status(400).json({ error: "Missing navigation boundaries" });
     }
 
+    // Debugging Check: Verify environment variable exists
+    if (!GOOGLE_KEY) {
+        console.error("CRITICAL ERROR: GOOGLE_DIRECTIONS_API_KEY is not defined in environment variables!");
+        return res.status(500).json({ error: "Server misconfiguration: Missing API Key" });
+    }
+
     // Translates fast acronym keywords straight to official physical addresses
     const witsAcronymsLookup = {
         "wss": "Wits Science Stadium, Braamfontein, Johannesburg",
@@ -75,7 +81,9 @@ server.get("/buildings", async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Backend request validation server fault:", error.message);
+        // Log detailed error details to Railway logs
+        console.error("Backend Server Error Details:", error.response ? error.response.data : error.message);
+        // console.error("Backend request validation server fault:", error.message);
         res.status(500).json({ error: "Internal navigation engine communication failure" });
     }
 });
