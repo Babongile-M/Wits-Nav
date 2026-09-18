@@ -62,22 +62,13 @@ server.get("/buildings", async (req, res) => {
     function resolveCampusAddress(inputTerm) {
         if (!inputTerm) return "";
         
-        // Strip spaces, punctuation, and convert to lowercase for key comparison
         const cleanedTerm = inputTerm.toLowerCase().trim();
         const strippedTerm = cleanedTerm.replace(/[^a-z0-9]/g, "");
 
-        // Check direct key match (e.g. "wss" or "wits science stadium")
-        if (campusLocations[cleanedTerm]) {
-            return campusLocations[cleanedTerm];
-        }
-
-        // Check stripped key match (e.g. "oldmutual" vs "old mutual")
-        if (campusLocations[strippedTerm]) {
-            return campusLocations[strippedTerm];
-        }
-
-        // Fallback: If user passes a custom text string, append campus bounds safely for Google Maps geocoding
-        return `${inputTerm}, Wits University, Johannesburg`;
+        // Match direct term or stripped term, or fallback to append bounds
+        return campusLocations[cleanedTerm] || 
+            campusLocations[strippedTerm] || 
+            `${inputTerm}, Wits University, Johannesburg`;
     }
 
     // Clean text strings and map matching address bounds, fallback to search text if not in dictionary
