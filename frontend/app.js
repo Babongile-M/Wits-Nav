@@ -115,75 +115,166 @@ function renderBackendPolyline(pathCoordinates) {
 
 // Tracks user's live location
 function trackUserLocation() {
-    // Check if the browser supports Geolocation
     if (!navigator.geolocation) {
         console.warn("Geolocation is not supported by your browser.");
         return;
     }
 
-    // Watch position continuously as the user walks
-    watchId = navigator.geolocation.watchPosition(
-    (position) => {
-        const userPos = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-        };
-
-        // Create marker if it doesn't exist yet
-        if (!userMarker) {
-            userMarker = new google.maps.Marker({
-                position: userPos,
-                map: map,
-                title: "Your Location",
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 8,
-                    fillColor: "#4285F4", // Google Blue dot Marker
-                    fillOpacity: 1,
-                    strokeColor: "#FFFFFF",
-                    strokeWeight: 2
-                }
-            });
-        } 
-
-        // Always move the marker when a newer GPS reading arrives.
-        userMarker.setPosition(userPos);
-
-        // Advance the instruction when the next point is reached.
-        updateStepFromGPS(position);
-
-        // Center the map view to the user's live location before any destination is searched for
-        if (!activeDestination && !activeMapCategory) {
-            map.setCenter(userPos);
-        }
-    },
-    (error) => {
-        console.warn("Location access denied or unavailable:", error.message);
-    },
-    {
-        enableHighAccuracy: true, // Use GPS tracking
-        maximumAge: 0,        // Do not use old cache locations
-        timeout: 10000
+    // Avoid starting multiple GPS watchers.
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
     }
+
+    watchId = navigator.geolocation.watchPosition(
+        position => {
+            const point = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
+            };
+
+            if (
+                !validCoordinate(point) ||
+                !Number.isFinite(position.timestamp) ||
+                position.timestamp > Date.now() + 1000 ||
+                (
+                    latestGPSPosition &&
+                    position.timestamp <= latestGPSPosition.timestamp
+                )
+            ) {
+                return;
+            }
+
+            // Store the reading, including its accuracy and timestamp.
+            latestGPSPosition = position;
+
+            if (!usableGPS(position)) {
+                updateStepFromGPS(position);
+                return;
+            }
+
+            if (!userMarker) {
+                userMarker = new google.maps.Marker({
+                    position: point,
+                    map,
+                    title: "Your Location",
+
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 8,
+                        fillColor: "#4285F4",
+                        fillOpacity: 1,
+                        strokeColor: "#FFFFFF",
+                        strokeWeight: 2
+                    }
+                });
+            }
+
+            userMarker.setPosition(point);
+            updateStepFromGPS(position);
+
+            if (!activeDestination && !activeMapCategory) {
+                map.setCenter(point);
+            }
+        },
+
+        error => {
+            latestGPSPosition = null;
+            resetNearbyReadings();
+
+            if (navigationSteps.length && !navigationFinished) {
+                showCurrentStep(
+                    "Location unavailable. Waiting for GPS to return."
+                );
+            }
+
+            console.warn("Location unavailable:", error.message);
+        },
+
+        {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 10000
+        }
     );
 }
 
 function updateDestination(searchInputString) {
-    if (!searchInputString) return;
+    const destination = String(searchInputString || "").trim();
 
-    if (!userMarker || !userMarker.getPosition()) {
-        alert("Location access required. Please enable location permissions to navigate.");
+    if (!destination) return;
+
+    // Cancel the previous request before checking the new search.
+    if (routeRequestController) {
+        routeRequestController.abort();
+    }
+
+    routeRequestController = null;
+
+    clearCategoryMarkers();
+    resetStepNavigation();
+
+    activeDestination = null;
+
+    if (activeRoutePolyline) {
+        activeRoutePolyline.setMap(null);
+    }
+
+    activeRoutePolyline = null;
+
+    if (destinationTitle) {
+        destinationTitle.textContent = "No destination selected";
+    }
+
+    if (destinationCategory) {
+        destinationCategory.textContent = "Search for a campus location";
+    }
+
+    if (mapDestinationTitle) {
+        mapDestinationTitle.textContent = "No destination selected";
+    }
+
+    if (mapDestinationMeta) {
+        mapDestinationMeta.textContent = "";
+    }
+
+    if (routeLabel) {
+        routeLabel.textContent = "No active route";
+    }
+
+    for (const element of [
+        walkTime,
+        walkDistance,
+        etaText,
+        mapDistancePill
+    ]) {
+        if (element) element.textContent = "—";
+    }
+
+    searchInput.blur();
+
+    document
+        .getElementById("location-suggestions")
+        ?.replaceChildren();
+
+    // Start from a fresh GPS reading rather than an old marker.
+    if (!map || !usableGPS(latestGPSPosition)) {
+        setInstructionsCardMode(true, "Waiting for location");
+
+        stepInstructionText.textContent = !map
+            ? "The map is still loading. Please try again."
+            : "Enable location access and wait for a fresh GPS reading. Then search again.";
+
+        stepsPanel.classList.remove("hidden");
         return;
     }
 
-    // Set global target text to engage continuous re-routing block inside watchPosition
-    activeDestination = searchInputString.trim();
+    activeDestination = destination;
 
-    const lat = userMarker.getPosition().lat();
-    const lng = userMarker.getPosition().lng();
-
-    // Trigger the initial calculation right away
-    fetchLiveRoute(lat, lng, activeDestination);
+    fetchLiveRoute(
+        latestGPSPosition.coords.latitude,
+        latestGPSPosition.coords.longitude,
+        destination
+    );
 }
 
 function setInstructionsCardMode(isError, heading = "Search message") {
@@ -244,8 +335,14 @@ async function fetchLiveRoute(lat, lng, destination) {
             throw error;
         }
 
-        if (!Array.isArray(serverData.pathCoordinates) || serverData.pathCoordinates.length < 2) {
-            throw new Error("The navigation server returned an incomplete route.");
+        if (
+            !Array.isArray(serverData.pathCoordinates) ||
+            serverData.pathCoordinates.length < 2 ||
+            !serverData.pathCoordinates.every(validCoordinate)
+        ) {
+            throw new Error(
+                "The navigation server returned incomplete or invalid route coordinates."
+            );
         }
 
         // Update Text panels UI 
@@ -263,7 +360,7 @@ async function fetchLiveRoute(lat, lng, destination) {
         if (navButtonText) navButtonText.textContent = "Navigation active";
 
         // Unhide step container instruction blocks
-        startStepNavigation(serverData.navigationSteps);
+        startStepNavigation(serverData.navigationSteps, serverData);
 
         // Restore the normal heading and navigation icon.
         setInstructionsCardMode(false);
@@ -335,36 +432,91 @@ async function fetchLiveRoute(lat, lng, destination) {
     }
     finally {
         clearTimeout(timeoutId);
+        // Do not clear a newer request's controller.
+        if (routeRequestController === controller) {
+            routeRequestController = null;
+        }
     }
 }
+
+// ======================================================
+// GPS AND STEP NAVIGATION
+// ======================================================
 
 let navigationSteps = [];
 let currentStepIndex = 0;
 let nearbyReadings = 0;
+let firstNearbyTime = null;
 let lastStepReadingTime = 0;
 let navigationFinished = false;
 
-// Starting values for testing on campus.
+let latestGPSPosition = null;
+let routeWarnings = [];
+let savedDestination = null;
+let completionMessage = "";
+
+// Starting settings for campus testing.
+// These cannot guarantee doorway-level GPS accuracy.
 const STEP_RADIUS_METRES = 12;
 const MAX_GPS_ERROR_METRES = 20;
-const REQUIRED_NEARBY_READINGS = 2;
+const MAX_GPS_AGE_MS = 10000;
+
+// Final confirmation uses stricter GPS requirements.
+const ARRIVAL_RADIUS_METRES = 15;
+const ARRIVAL_MAX_GPS_ERROR_METRES = 10;
+
+const REQUIRED_NEARBY_READINGS = 3;
+const NEARBY_DURATION_MS = 3000;
+
+function validCoordinate(point) {
+    return Boolean(
+        point &&
+        Number.isFinite(point.lat) &&
+        Number.isFinite(point.lng) &&
+        Math.abs(point.lat) <= 90 &&
+        Math.abs(point.lng) <= 180
+    );
+}
+
+function usableGPS(
+    position,
+    maximumError = MAX_GPS_ERROR_METRES
+) {
+    const coords = position?.coords;
+    const age = Date.now() - position?.timestamp;
+
+    return Boolean(
+        coords &&
+        validCoordinate({
+            lat: coords.latitude,
+            lng: coords.longitude
+        }) &&
+        Number.isFinite(position.timestamp) &&
+        age >= -1000 &&
+        age <= MAX_GPS_AGE_MS &&
+        Number.isFinite(coords.accuracy) &&
+        coords.accuracy >= 0 &&
+        coords.accuracy <= maximumError
+    );
+}
 
 function distanceInMetres(a, b) {
     const radians = degrees => degrees * Math.PI / 180;
-    const earthRadius = 6371000;
-
-    const latitudeDifference = radians(b.lat - a.lat);
-    const longitudeDifference = radians(b.lng - a.lng);
 
     const h =
-        Math.sin(latitudeDifference / 2) ** 2 +
+        Math.sin(radians(b.lat - a.lat) / 2) ** 2 +
         Math.cos(radians(a.lat)) *
         Math.cos(radians(b.lat)) *
-        Math.sin(longitudeDifference / 2) ** 2;
+        Math.sin(radians(b.lng - a.lng) / 2) ** 2;
 
-    return 2 * earthRadius * Math.asin(
+    return 12742000 * Math.asin(
         Math.sqrt(Math.min(1, Math.max(0, h)))
     );
+}
+
+function resetNearbyReadings() {
+    nearbyReadings = 0;
+    firstNearbyTime = null;
 }
 
 function showCurrentStep(note = "") {
@@ -372,119 +524,238 @@ function showCurrentStep(note = "") {
 
     const step = navigationSteps[currentStepIndex];
 
-    if (!step) {
-        stepInstructionText.textContent = "";
-        return;
-    }
+    if (!step) return;
 
     const heading = navigationFinished
-        ? "Arrived"
+        ? "Mapped route complete"
         : `Step ${currentStepIndex + 1} of ${navigationSteps.length}`;
 
+    // Do not display "You have reached..." before confirmation.
+    const instruction = step.isArrival && !navigationFinished
+        ? "Approaching the end of the mapped walking route."
+        : step.instruction;
+
+    // Display warnings inside the existing instructions card.
     stepInstructionText.style.whiteSpace = "pre-line";
 
-    stepInstructionText.textContent =
-        `${heading}\n${step.instruction}` +
-        (note ? `\n${note}` : "");
+    stepInstructionText.textContent = [
+        `${heading}\n${instruction}`,
+        navigationFinished ? completionMessage : note,
+        ...routeWarnings
+    ]
+        .filter(Boolean)
+        .join("\n\n");
 }
 
 function resetStepNavigation() {
     navigationSteps = [];
     currentStepIndex = 0;
-    nearbyReadings = 0;
+
+    resetNearbyReadings();
+
     lastStepReadingTime = 0;
     navigationFinished = false;
+    routeWarnings = [];
+    savedDestination = null;
+    completionMessage = "";
 
     if (stepInstructionText) {
         stepInstructionText.textContent = "";
     }
 }
 
-function startStepNavigation(steps) {
+function startStepNavigation(steps, serverData) {
     resetStepNavigation();
 
-    const validSteps = Array.isArray(steps) && steps.length > 0 && steps.every(step =>
+    // The Google server adds one final arrival step.
+    // All earlier steps must be normal walking instructions.
+    const validSteps =
+        Array.isArray(steps) &&
+        steps.length > 1 &&
+        steps.every((step, index) =>
+            step &&
             typeof step.instruction === "string" &&
-            Number.isFinite(step.target?.lat) &&
-            Number.isFinite(step.target?.lng)
+            validCoordinate(step.target) &&
+            step.isArrival === (index === steps.length - 1)
         );
 
-    if (!validSteps) {
+    if (
+        !validSteps ||
+        !validCoordinate(serverData?.destination)
+    ) {
         throw new Error(
-            "Step coordinates are missing. Deploy the updated backend."
+            "Navigation data is incomplete. Deploy the updated Google Routes server."
         );
     }
 
     navigationSteps = steps;
+    savedDestination = serverData.destination;
+
+    routeWarnings = [
+        ...new Set(
+            [
+                "Walking directions are in beta and may be missing sidewalks or pedestrian paths. Use caution and follow campus signs.",
+
+                ...(
+                    Array.isArray(serverData.warnings)
+                        ? serverData.warnings
+                        : []
+                )
+            ].filter(
+                value =>
+                    typeof value === "string" &&
+                    value.trim()
+            )
+        )
+    ];
+
+    // Only new GPS readings may advance this newly loaded route.
+    lastStepReadingTime = Date.now();
+
     showCurrentStep();
 }
 
 function updateStepFromGPS(position) {
-    if (!navigationSteps.length || navigationFinished) return;
+    if (
+        !navigationSteps.length ||
+        navigationFinished
+    ) {
+        return;
+    }
 
-    const timestamp = position.timestamp;
-    const accuracy = position.coords.accuracy;
+    const timestamp = position?.timestamp;
 
-    // Ignore old or repeated GPS readings.
     if (
         !Number.isFinite(timestamp) ||
-        timestamp <= lastStepReadingTime ||
-        Date.now() - timestamp > 15000
+        timestamp <= lastStepReadingTime
     ) {
+        return;
+    }
+
+    // Readings separated by a long gap are not
+    // consecutive confirmations.
+    if (timestamp - lastStepReadingTime > 5000) {
+        resetNearbyReadings();
+    }
+
+    if (!usableGPS(position)) {
+        resetNearbyReadings();
+
+        showCurrentStep(
+            "GPS is uncertain or out of date. Waiting for a clearer reading."
+        );
+
         return;
     }
 
     lastStepReadingTime = timestamp;
 
-    // Do not advance instructions when GPS is too uncertain.
-    if (
-        !Number.isFinite(accuracy) ||
-        accuracy > MAX_GPS_ERROR_METRES
-    ) {
-        nearbyReadings = 0;
+    const point = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude
+    };
+
+    const accuracy = position.coords.accuracy;
+    const step = navigationSteps[currentStepIndex];
+
+    const targetDistance = distanceInMetres(
+        point,
+        step.target
+    );
+
+    // Include reported GPS uncertainty in the final check.
+    // Example: distance 8 m + uncertainty 10 m does not pass
+    // a 15 m final-confirmation limit.
+    const nearTarget = step.isArrival
+        ? accuracy <= ARRIVAL_MAX_GPS_ERROR_METRES &&
+          targetDistance + accuracy <= ARRIVAL_RADIUS_METRES
+        : targetDistance <= STEP_RADIUS_METRES;
+
+    if (!nearTarget) {
+        resetNearbyReadings();
 
         showCurrentStep(
-            "GPS accuracy is low. Waiting for a clearer location."
+            step.isArrival
+                ? "Waiting for a precise GPS reading near the mapped endpoint."
+                : ""
         );
 
         return;
     }
 
-    const userPosition = {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude
-    };
-
-    const step = navigationSteps[currentStepIndex];
-    const distance = distanceInMetres(userPosition, step.target);
-
-    if (distance > STEP_RADIUS_METRES) {
-        nearbyReadings = 0;
-        showCurrentStep();
-        return;
+    if (firstNearbyTime === null) {
+        firstNearbyTime = timestamp;
     }
 
     nearbyReadings++;
 
-    if (nearbyReadings < REQUIRED_NEARBY_READINGS) return;
+    // Require several nearby readings over time.
+    if (
+        nearbyReadings < REQUIRED_NEARBY_READINGS ||
+        timestamp - firstNearbyTime < NEARBY_DURATION_MS
+    ) {
+        showCurrentStep(
+            step.isArrival
+                ? "Checking your position at the mapped endpoint..."
+                : ""
+        );
 
-    nearbyReadings = 0;
-
-    if (currentStepIndex < navigationSteps.length - 1) {
-        currentStepIndex++;
+        return;
     }
 
-    const newStep = navigationSteps[currentStepIndex];
+    resetNearbyReadings();
 
-    if (
-        newStep.isArrival ||
-        currentStepIndex === navigationSteps.length - 1
-    ) {
+    // Only finish after checking the CURRENT arrival step.
+    // Selecting that step is not enough.
+    if (step.isArrival) {
         navigationFinished = true;
+
+        const pinDistance = distanceInMetres(
+            point,
+            savedDestination
+        );
+
+        completionMessage =
+            pinDistance + accuracy <= ARRIVAL_RADIUS_METRES
+                ? "GPS also places you near the saved venue pin. Confirm the building name and entrance signs."
+                : `The saved venue pin is approximately ${Math.round(pinDistance)} m away. The exact entrance has not been confirmed.`;
+
+        if (routeLabel) {
+            routeLabel.textContent = "Mapped route complete";
+        }
+    } else {
+        currentStepIndex++;
     }
 
     showCurrentStep();
 }
+
+// GPS may stop updating without immediately reporting an error.
+setInterval(() => {
+    const fresh = usableGPS(latestGPSPosition);
+
+    const label = document.getElementById("gps-text");
+
+    if (label) {
+        label.textContent = fresh
+            ? "GPS Active"
+            : "GPS unavailable or uncertain";
+    }
+
+    if (!fresh) {
+        resetNearbyReadings();
+
+        if (
+            navigationSteps.length &&
+            !navigationFinished
+        ) {
+            showCurrentStep(
+                "Waiting for a fresh, accurate GPS reading."
+            );
+        }
+    }
+}, 3000);
+
 
 const locationSuggestions = document.getElementById("location-suggestions");
 
