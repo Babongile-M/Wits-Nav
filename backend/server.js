@@ -10,7 +10,7 @@ const connections = require("./connections.json");
 const directions = require("./directions.json");
 
 // Ensuring that Railway.app uses its custom port dynamically first before defaulting to port 4000 locally
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 8080;
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`The server is running on port ${PORT}`);
