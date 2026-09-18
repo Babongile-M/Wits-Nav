@@ -172,7 +172,13 @@ server.get("/buildings", async (req, res) => {
         }
     }
 
-    const apiKey = process.env.GOOGLE_ROUTES_API_KEY?.trim();
+    // Your Railway variable is GOOGLE_ROUTE_API.
+    // The second name is only a fallback in case you rename it later.
+    const apiKey = (
+        process.env.GOOGLE_ROUTE_API ||
+        process.env.GOOGLE_ROUTES_API_KEY ||
+        ""
+    ).trim();
 
     if (!apiKey) {
         return res.status(503).json({
@@ -233,7 +239,9 @@ server.get("/buildings", async (req, res) => {
                 Array.isArray(point) && point.length >= 2
             )
         ) {
-            throw new Error("Google returned incomplete route geometry.");
+            throw new Error(
+                "Google returned incomplete route geometry."
+            );
         }
 
         const pathCoordinates = coordinates.map(point => ({
@@ -242,30 +250,40 @@ server.get("/buildings", async (req, res) => {
         }));
 
         if (!pathCoordinates.every(hasCoordinates)) {
-            throw new Error("Google returned invalid route coordinates.");
+            throw new Error(
+                "Google returned invalid route coordinates."
+            );
         }
 
         const rawSteps = (route.legs || [])
             .flatMap(leg => leg.steps || []);
 
-        // Use a separate final arrival step for our GPS step tracker.
-        const walkingSteps = rawSteps.filter(step =>
-            step.navigationInstruction?.maneuver !== "DESTINATION"
-        );
+        // Every Google step returned for this route belongs
+        // to the walking route.
+        const walkingSteps = rawSteps;
 
         if (walkingSteps.length === 0) {
-            throw new Error("Google returned no walking instructions.");
+            throw new Error(
+                "Google returned no walking instructions."
+            );
         }
 
         const navigationSteps = walkingSteps.map(step => {
             const distance = step.distanceMeters ?? 0;
 
-            if (!Number.isFinite(distance) || distance < 0) {
-                throw new Error("Google returned an invalid step distance.");
+            if (
+                !Number.isFinite(distance) ||
+                distance < 0
+            ) {
+                throw new Error(
+                    "Google returned an invalid step distance."
+                );
             }
 
             const instruction =
-                step.navigationInstruction?.instructions?.trim();
+                step.navigationInstruction
+                    ?.instructions
+                    ?.trim();
 
             return {
                 instruction:
@@ -274,28 +292,39 @@ server.get("/buildings", async (req, res) => {
 
                 distanceMeters: Math.round(distance),
 
-                // Advance after reaching the END of this walking step.
+                // User advances to next instruction after
+                // reaching the END of this step.
                 target: stepTarget(step),
 
                 isArrival: false
             };
         });
 
-        // Appending arrival prevents the frontend from declaring arrival
-        // when it first begins the final walking segment.
+        // Add our own final arrival instruction.
         const lastWalkingStep =
-            navigationSteps[navigationSteps.length - 1];
+            navigationSteps[
+                navigationSteps.length - 1
+            ];
 
         navigationSteps.push({
-            instruction: "You have reached the end of the mapped walking route.",
+            instruction:
+                "You have reached the end of the mapped walking route.",
+
             distanceMeters: 0,
-            target: { ...lastWalkingStep.target },
+
+            target: {
+                ...lastWalkingStep.target
+            },
+
             isArrival: true
         });
 
-        // Google duration is a string such as "245s".
-        const durationSeconds = Number.parseFloat(route.duration);
-        const distanceMeters = route.distanceMeters ?? 0;
+        // Google duration looks like "245s".
+        const durationSeconds =
+            Number.parseFloat(route.duration);
+
+        const distanceMeters =
+            route.distanceMeters ?? 0;
 
         if (
             !Number.isFinite(durationSeconds) ||
@@ -303,7 +332,9 @@ server.get("/buildings", async (req, res) => {
             !Number.isFinite(distanceMeters) ||
             distanceMeters < 0
         ) {
-            throw new Error("Google returned invalid route totals.");
+            throw new Error(
+                "Google returned invalid route totals."
+            );
         }
 
         const walkingNotice =
@@ -312,40 +343,64 @@ server.get("/buildings", async (req, res) => {
 
         const warnings = [
             walkingNotice,
-            ...(Array.isArray(route.warnings) ? route.warnings : [])
+            ...(Array.isArray(route.warnings)
+                ? route.warnings
+                : [])
         ].filter(value =>
-            typeof value === "string" && value.trim() !== ""
+            typeof value === "string" &&
+            value.trim() !== ""
         );
 
         return res.json({
-            title: endLocation.name || to.trim(),
+            title:
+                endLocation.name ||
+                to.trim(),
 
             duration:
-                `${Math.max(1, Math.ceil(durationSeconds / 60))} mins`,
+                `${Math.max(
+                    1,
+                    Math.ceil(durationSeconds / 60)
+                )} mins`,
 
-            distance: `${Math.round(distanceMeters)} m`,
+            distance:
+                `${Math.round(distanceMeters)} m`,
 
-            // Keep compatibility with the existing interface.
-            directions: navigationSteps.map(step => step.instruction),
+            // Compatibility with existing interface.
+            directions:
+                navigationSteps.map(
+                    step => step.instruction
+                ),
 
-            // Existing GPS-based, one-at-a-time instruction format.
+            // Used by GPS step tracker.
             navigationSteps,
 
-            // Existing Google Maps polyline format.
+            // Used to draw the yellow Google Maps route.
             pathCoordinates,
 
-            warnings: [...new Set(warnings)]
+            warnings: [
+                ...new Set(warnings)
+            ]
         });
 
     } catch (error) {
-        const upstreamStatus = error.response?.status;
-        const googleError = error.response?.data?.error;
+        const upstreamStatus =
+            error.response?.status;
 
-        // Do not log the complete Axios error: it contains API headers.
-        console.error("Google Routes request failed:", {
-            httpStatus: upstreamStatus,
-            code: googleError?.status || error.code || "INVALID_RESPONSE"
-        });
+        const googleError =
+            error.response?.data?.error;
+
+        // Do not print the complete Axios error because
+        // it may contain request headers.
+        console.error(
+            "Google Routes request failed:",
+            {
+                httpStatus: upstreamStatus,
+                code:
+                    googleError?.status ||
+                    error.code ||
+                    "INVALID_RESPONSE"
+            }
+        );
 
         if (
             error.code === "ECONNABORTED" ||
@@ -353,31 +408,56 @@ server.get("/buildings", async (req, res) => {
         ) {
             return res.status(504).json({
                 code: "ROUTING_TIMEOUT",
-                error: "Walking directions took too long. Please try again."
+                error:
+                    "Walking directions took too long. Please try again."
             });
         }
 
-        if (upstreamStatus === 401 || upstreamStatus === 403) {
+        if (
+            upstreamStatus === 401 ||
+            upstreamStatus === 403
+        ) {
             return res.status(503).json({
-                code: "ROUTING_CONFIGURATION_ERROR",
-                error: "Walking navigation is unavailable because of a server configuration problem."
+                code:
+                    "ROUTING_CONFIGURATION_ERROR",
+
+                error:
+                    "Walking navigation is unavailable because of a server configuration problem."
             });
         }
 
         if (upstreamStatus === 429) {
             return res.status(503).json({
-                code: "ROUTING_LIMIT_REACHED",
-                error: "Walking navigation is temporarily unavailable. Please try again later."
+                code:
+                    "ROUTING_LIMIT_REACHED",
+
+                error:
+                    "Walking navigation is temporarily unavailable. Please try again later."
             });
+        }
+
+        // Helpful server-side logging without exposing API key.
+        if (googleError?.message) {
+            console.error(
+                "Google Routes message:",
+                googleError.message
+            );
         }
 
         return res.status(502).json({
             code: "ROUTING_FAILED",
-            error: "Walking directions could not be loaded. Please try again."
+            error:
+                "Walking directions could not be loaded. Please try again."
         });
     }
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-    console.log(`The server is running on port ${PORT}`);
-});
+server.listen(
+    PORT,
+    "0.0.0.0",
+    () => {
+        console.log(
+            `The server is running on port ${PORT}`
+        );
+    }
+);
