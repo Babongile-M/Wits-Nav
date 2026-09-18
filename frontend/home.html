@@ -38,9 +38,7 @@
 
   <div class="min-h-dvh flex flex-col bg-slate-50">
 
-    <!-- =========================
-         TOP NAVIGATION
-    ========================== -->
+    <!-- TOP NAVIGATION -->
     <header class="h-16 md:h-[72px] bg-wits-900 text-white flex-shrink-0 z-50 shadow-lg">
       <div class="h-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
 
@@ -253,13 +251,13 @@
                 <div class="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100">
                   <div class="bg-slate-50 rounded-xl p-3">
                     <i data-lucide="footprints" class="w-4 h-4 text-wits-700 mb-2"></i>
-                    <p class="text-sm font-extrabold text-wits-900" id="walk-time">4 min</p>
+                    <p class="text-sm font-extrabold text-wits-900" id="walk-time">0 min</p>
                     <p class="text-[10px] text-slate-500">Walking time</p>
                   </div>
 
                   <div class="bg-slate-50 rounded-xl p-3">
                     <i data-lucide="route" class="w-4 h-4 text-wits-gold mb-2"></i>
-                    <p class="text-sm font-extrabold text-wits-900" id="walk-distance">320 m</p>
+                    <p class="text-sm font-extrabold text-wits-900" id="walk-distance">0 m</p>
                     <p class="text-[10px] text-slate-500">Distance</p>
                   </div>
                 </div>
@@ -357,6 +355,15 @@
                         <h4 class="text-sm font-bold text-slate-800 mt-1">Chamber of Mines Building</h4>
                         <p class="text-[10px] text-slate-400">West Campus · Engineering & Built Environment</p>
                     </div>
+                </div>
+
+
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-subtle flex justify-between items-center abbrev-card">
+                  <div>
+                    <span class="inline-block bg-wits-gold/10 text-wits-900 text-xs font-black px-2 py-0.5 rounded border border-wits-gold/20">CCDU</span>
+                    <h4 class="text-sm font-bold text-slate-800 mt-1">Counselling and Careers Development Unit</h4>
+                    <p class="text-xs text-slate-500 mt-1">Student counselling, career guidance and development support.</p>
+                  </div>
                 </div>
 
                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-subtle flex justify-between items-center abbrev-card">
@@ -487,18 +494,21 @@
                     </div>
                     <div>
                       <div class="flex items-center gap-2 flex-wrap">
-                        <h4 class="font-bold text-wits-900 text-base">Campus Control Command Center</h4>
+                        <h4 class="font-bold text-wits-900 text-base">Campus Protection Services (CPS) — East Campus</h4>
                         <span class="px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">Open 24/7</span>
                       </div>
-                      <p class="text-xs text-slate-500 mt-0.5">Central Block, Ground Floor — East Campus</p>
-                      <p class="text-xs text-slate-600 mt-2 leading-relaxed">
-                        Main deployment hub for physical campus security escorts, vehicle assistance, and tactical rapid response.
-                      </p>
+                      <p class="text-xs text-slate-500 mt-0.5">Room 1, Robert Sobukwe Block — East Campus</p>
+                      <p class="text-xs text-slate-600 mt-2 leading-relaxed">Assists with campus safety and security concerns. Students and staff can request a 24-hour on-campus security escort, including when working late.</p>
                     </div>
                   </div>
                 </div>
-                <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2 justify-end">
-                  <button class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5">
+                <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2 justify-end">
+                  <a href="tel:+27117174444" class="px-3 py-1.5 text-xs font-semibold text-wits-900 bg-wits-goldLight border border-wits-gold/20 rounded-xl hover:bg-amber-100 transition flex items-center gap-1.5">
+                    <i data-lucide="phone" class="w-3.5 h-3.5"></i>
+                    011 717 4444
+                  </a>
+
+                  <button type="button" data-route-to="robert-sobukwe" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5">
                     <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Show Route
                   </button>
                 </div>
@@ -513,18 +523,29 @@
                     </div>
                     <div>
                       <div class="flex items-center gap-2 flex-wrap">
-                        <h4 class="font-bold text-wits-900 text-base">Campus Health & Wellness Centre</h4>
-                        <span class="px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 rounded">08:00 - 16:30</span>
+                        <h4 class="font-bold text-wits-900 text-base">Campus Health & Wellness Centre (CHWC)</h4>
+                        <span class="inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-1 text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-md">
+                          <span>08:00 – 16:30</span>
+                          <span aria-hidden="true">·</span>
+                          <span>Weekdays</span>
+                        </span>
                       </div>
-                      <p class="text-xs text-slate-500 mt-0.5">Matrix Building, 1st Floor — East Campus</p>
+                      <p class="text-xs text-slate-500 mt-0.5">Matrix Building, Lower Ground — East Campus</p>
+                      <p class="text-[10px] text-slate-500 mt-1">Closed on weekends and public holidays.</p>
                       <p class="text-xs text-slate-600 mt-2 leading-relaxed">
-                        Offers emergency outpatient care, primary healthcare consultations, medical screening, and mental health support.
+                        Provides healthcare for Wits students and staff, including primary healthcare consultations and treatment through nurses and medical practitioners. Consultation fees may apply.
                       </p>
                     </div>
                   </div>
                 </div>
-                <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2 justify-end">
-                  <button class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5">
+                <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2 justify-end">
+                  
+                  <a href="tel:+27117179111" class="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 transition flex items-center gap-1.5">
+                    <i data-lucide="phone" class="w-3.5 h-3.5"></i>
+                    011 717 9111
+                  </a>
+
+                  <button type="button" data-route-to="matrix" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5">
                     <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Show Route
                   </button>
                 </div>
@@ -539,18 +560,21 @@
                     </div>
                     <div>
                       <div class="flex items-center gap-2 flex-wrap">
-                        <h4 class="font-bold text-wits-900 text-base">West Campus Security Sub-Station</h4>
+                        <h4 class="font-bold text-wits-900 text-base">Campus Protection Services (CPS) — West Campus</h4>
                         <span class="px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">Open 24/7</span>
                       </div>
-                      <p class="text-xs text-slate-500 mt-0.5">FNB Building Concourse — West Campus</p>
-                      <p class="text-xs text-slate-600 mt-2 leading-relaxed">
-                        Localized safety office monitoring West Campus borders, walkways, and commercial zones.
-                      </p>
+                      <p class="text-xs text-slate-500 mt-0.5">FNB Building — West Campus</p>
+                      <p class="text-xs text-slate-600 mt-2 leading-relaxed">Assists with campus safety and security concerns. Students and staff can request a 24-hour on-campus security escort, including when working late.</p>
                     </div>
                   </div>
                 </div>
-                <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2 justify-end">
-                  <button class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5">
+
+                <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2 justify-end">
+                  <a href="tel:+27117171842" class="px-3 py-1.5 text-xs font-semibold text-wits-900 bg-wits-goldLight border border-wits-gold/20 rounded-xl hover:bg-amber-100 transition flex items-center gap-1.5">
+                    <i data-lucide="phone" class="w-3.5 h-3.5"></i>
+                    011 717 1842
+                  </a>
+                  <button type="button" data-route-to="fnb" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5">
                     <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Show Route
                   </button>
                 </div>
@@ -564,7 +588,7 @@
               <div class="border-b border-slate-100 pb-3 mb-4">
                 <h3 class="font-bold text-wits-900 text-base flex items-center gap-2">
                   <i data-lucide="phone-call" class="w-4 h-4 text-wits-gold"></i>
-                  Emergency Hotlines
+                  Emergency &amp; Support Contacts
                 </h3>
                 <p class="text-xs text-slate-500 mt-0.5">Instant one-tap direct phone dials</p>
               </div>
@@ -579,7 +603,8 @@
                       <i data-lucide="phone" class="w-4 h-4"></i>
                     </div>
                     <div>
-                      <h4 class="text-xs font-bold text-rose-950">Campus Control (East/West)</h4>
+                      <h4 class="text-xs font-bold text-rose-950">Campus Protection Services</h4>
+                      <p class="text-[10px] text-rose-700 mt-1">24 hours · Every day</p>
                       <p class="text-[10px] text-rose-700 font-mono mt-0.5">011 717 4444</p>
                     </div>
                   </div>
@@ -587,28 +612,28 @@
                 </a>
 
                 <!-- Helpline item 2 -->
-                <a href="tel:+27117176666" class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition">
+                <a href="tel:+27117179111" class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition">
                   <div class="flex gap-3 items-center">
                     <div class="p-2 rounded-lg bg-wits-900 text-white">
-                      <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                      <i data-lucide="heart-pulse" class="w-4 h-4"></i>
                     </div>
                     <div>
-                      <h4 class="text-xs font-bold text-wits-900">Health &amp; Wellness Line</h4>
-                      <p class="text-[10px] text-slate-500 font-mono mt-0.5">011 717 6666</p>
+                      <h4 class="text-xs font-bold text-wits-900">Campus Health &amp; Wellness Centre</h4>
+                      <p class="text-[10px] text-slate-500 font-mono mt-0.5">011 717 9111</p>
                     </div>
                   </div>
                   <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition"></i>
                 </a>
 
                 <!-- Helpline item 3 -->
-                <a href="tel:+27800111333" class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition">
+                <a href="tel:0800111331" class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition">
                   <div class="flex gap-3 items-center">
                     <div class="p-2 rounded-lg bg-slate-700 text-white">
                       <i data-lucide="smile" class="w-4 h-4"></i>
                     </div>
                     <div>
                       <h4 class="text-xs font-bold text-slate-800">Wits Student Crisis Line</h4>
-                      <p class="text-[10px] text-slate-500 font-mono mt-0.5">0800 111 333</p>
+                      <p class="text-[10px] text-slate-500 font-mono mt-0.5">0800 111 331</p>
                     </div>
                   </div>
                   <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition"></i>
@@ -619,8 +644,10 @@
               <!-- Helpful Notice Information -->
               <div class="mt-5 p-3 rounded-xl bg-amber-50/60 border border-amber-200/70 flex gap-2.5 items-start">
                 <i data-lucide="info" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
-                <p class="text-[10px] text-amber-800 leading-relaxed">
-                  <strong>Tip for Visitors:</strong> Wits physical protection officers can accompany you to your vehicle at night if you request an escort at any guard house point.
+                <p class="text-xs text-amber-800 leading-relaxed">
+                  <strong>Need a campus escort?</strong>
+                  Students and staff can call Campus Protection Services to request
+                  a 24-hour on-campus escort. Give your location, name and callback number.
                 </p>
               </div>
             </aside>
