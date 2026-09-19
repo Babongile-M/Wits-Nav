@@ -3,76 +3,131 @@
     "id": "gate 9",
     "name": "WITS ENTRANCE 9",
     "category": "entrance",
-    "aliases": ["gate 9", "entrance 9", "WITS Entrance 9"],
+    "aliases": [
+      "gate 9",
+      "entrance 9",
+      "wits entrance 9"
+    ],
     "lat": -26.192576,
-    "lng": 28.0244157
+    "lng": 28.0244157,
+    "placeId": "ChIJlVF5FEkNlR4RnAQAJ7mA-6w",
+    "entrance": null
   },
   {
     "id": "gate 10",
     "name": "WITS Entrance 10",
     "category": "entrance",
-    "aliases": ["gate 10", "Entrance 10", "WITS Entrance 10"],
+    "aliases": [
+      "gate 10",
+      "entrance 10",
+      "wits entrance 10"
+    ],
     "lat": -26.1930595,
-    "lng": 28.0287068
+    "lng": 28.0287068,
+    "placeId": "ChIJlQVcGpoNlR4RIfhLijAdb6w",
+    "entrance": null
   },
   {
     "id": "WITS Yale Road Gate",
     "name": "WITS Yale Road Gate",
     "category": "entrance",
-    "aliases": ["Yale Road Gate", "WITS Yale Road Gate"],
+    "aliases": [
+      "yale road gate",
+      "wits yale road gate"
+    ],
     "lat": -26.1870062,
-    "lng": 28.02789
+    "lng": 28.02789,
+    "placeId": "EjFZYWxlIFJkLCBCcmFhbWZvbnRlaW4sIEpvaGFubmVzYnVyZywgU291dGggQWZyaWNhIi4qLAoUChIJw0UNuw8MlR4R6cDiSRSspPwSFAoSCcUaCHQZDJUeEQXoZ8ZdIirR",
+    "entrance": null
   },
   {
     "id": "barnato",
     "name": "Barnato Hall",
     "category": "residence",
-    "aliases": ["barnato", "Barnato Hall"],
+    "aliases": [
+      "barnato",
+      "barnato hall"
+    ],
     "lat": -26.1898349,
-    "lng": 28.020852
+    "lng": 28.020852,
+    "placeId": "ChIJaV7-rQ4MlR4R_vzWYtARHwM",
+    "entrance": null
   },
   {
     "id": "Mens-res",
     "name": "Mens Hall of Residence",
     "category": "residence",
-    "aliases": ["Mens-res", "Mens Hall of Residence"],
+    "aliases": [
+      "mens-res",
+      "mens res",
+      "mens hall",
+      "mens hall of residence"
+    ],
     "lat": -26.1889931,
-    "lng": 28.028769
+    "lng": 28.028769,
+    "placeId": "ChIJAVLZ8Q8MlR4RjB-BmSjrM50",
+    "entrance": null
   },
   {
     "id": "sunnyside",
     "name": "Sunnyside Residence",
     "category": "residence",
-    "aliases": ["sunnyside", "Sunnyside Residence"],
+    "aliases": [
+      "sunnyside",
+      "sunnyside residence"
+    ],
     "lat": -26.1900216,
-    "lng": 28.0308648
+    "lng": 28.0308648,
+    "placeId": "ChIJ4YPAbxAMlR4RJEHBu61fq3g",
+    "entrance": null
   },
   {
     "id": "jubilee",
     "name": "Wits University Jubilee Hall",
     "category": "residence",
-    "aliases": ["jubilee", "jubilee hall", "Wits University Jubilee Hall"],
+    "aliases": [
+      "jubilee",
+      "jubilee hall",
+      "wits university jubilee hall"
+    ],
     "lat": -26.1887267,
-    "lng": 28.0315461
+    "lng": 28.0315461,
+    "placeId": "ChIJSbm7RBAMlR4R2KAAoSazp40",
+    "entrance": null
   },
   {
     "id": "david-webster",
     "name": "David Webster Hall of Residence",
     "category": "residence",
-    "aliases": ["david webster", "David Webster Hall of Residence", "webster"],
+    "aliases": [
+      "david webster",
+      "david webster hall",
+      "david webster hall of residence",
+      "webster"
+    ],
     "lat": -26.1868342,
-    "lng": 28.0236272
+    "lng": 28.0236272,
+    "placeId": "ChIJ_01mIAwMlR4Ra6rJHiPi4GI",
+    "entrance": null
   },
   {
     "id": "wss",
     "name": "Wits Science Stadium",
-    "aliases": ["wss", "wits science stadium"],
+    "category": "building",
+    "aliases": [
+      "wss",
+      "wits science stadium",
+      "science stadium"
+    ],
     "lat": -26.1906621,
-    "lng": 28.0253398
+    "lng": 28.0253398,
+    "placeId": "ChIJZw7YRQ8MlR4Rj5AB1Si71lA",
+    "entrance": null
   },
   {
     "id": "smh",
     "name": "Solomon Mahlangu House",
+    "category": "building",
     "aliases": [
       "smh",
       "sh",
@@ -81,29 +136,41 @@
       "senate house"
     ],
     "lat": -26.192205,
-    "lng": 28.0297407
+    "lng": 28.0297407,
+    "placeId": "ChIJO_WR1BoMlR4RqwlYZLnzPJw",
+    "entrance": null
   },
   {
     "id": "fnb",
     "name": "FNB Building",
-    "aliases": ["fnb", "fnb building"],
+    "category": "building",
+    "aliases": [
+      "fnb",
+      "fnb building"
+    ],
     "lat": -26.1889235,
-    "lng": 28.0265089
+    "lng": 28.0265089,
+    "placeId": "ChIJM0fHHA8MlR4R7ZZI5Bk3b6A",
+    "entrance": null
   },
   {
     "id": "cm",
     "name": "Chamber of Mines Building",
+    "category": "building",
     "aliases": [
       "cm",
       "chamber of mines",
       "chamber of mines building"
     ],
     "lat": -26.1914641,
-    "lng": 28.0266785
+    "lng": 28.0266785,
+    "placeId": "ChIJ3SghgQUMlR4RByHYL_-062Q",
+    "entrance": null
   },
   {
     "id": "matrix",
     "name": "The Matrix Student Centre",
+    "category": "building",
     "aliases": [
       "matrix",
       "the matrix",
@@ -111,48 +178,89 @@
       "the matrix student centre"
     ],
     "lat": -26.1903474,
-    "lng": 28.0299062
+    "lng": 28.0299062,
+    "placeId": "ChIJQVqV1RoMlR4RwlP7fTopiMo",
+    "entrance": null
   },
   {
     "id": "oldmutual",
     "name": "Old Mutual Building",
-    "aliases": ["oldmutual", "old mutual", "old mutual building"],
+    "category": "building",
+    "aliases": [
+      "oldmutual",
+      "old mutual",
+      "old mutual building"
+    ],
     "lat": -26.1896066,
-    "lng": 28.0292964
+    "lng": 28.0292964,
+    "placeId": "ChIJr1Hu6Q8MlR4RRa69s0QWZwY",
+    "entrance": null
   },
   {
     "id": "arm",
     "name": "ARM Building",
-    "aliases": ["arm", "arm building"],
+    "category": "building",
+    "aliases": [
+      "arm",
+      "arm building"
+    ],
     "lat": -26.1916196,
-    "lng": 28.0270148
+    "lng": 28.0270148,
+    "placeId": "ChIJfaGyhgUMlR4R8iw5D3XCDyw",
+    "entrance": null
   },
   {
     "id": "robert-sobukwe",
     "name": "Robert Sobukwe",
-    "aliases": ["robert sobukwe", "robert sobukwe building"],
+    "category": "building",
+    "aliases": [
+      "robert sobukwe",
+      "robert sobukwe building"
+    ],
     "lat": -26.1921065,
-    "lng": 28.0305018
+    "lng": 28.0305018,
+    "placeId": "ChIJh7opyxoMlR4R7S3gjohpdWY",
+    "entrance": null
   },
   {
     "id": "bridge",
     "name": "Bridge",
-    "aliases": ["bridge"],
+    "category": "building",
+    "aliases": [
+      "bridge"
+    ],
     "lat": -26.1915989,
-    "lng": 28.0272411
+    "lng": 28.0272411,
+    "placeId": "ChIJY1XevJQNlR4RyNMD27TN-FQ",
+    "entrance": null
   },
   {
     "id": "ols",
     "name": "Oppenheimer Life Sciences Building",
-    "aliases": ["OS", "OLS", "Oppenheimer Life Sciences Building"],
+    "category": "building",
+    "aliases": [
+      "os",
+      "ols",
+      "oppenheimer life sciences",
+      "oppenheimer life sciences building"
+    ],
     "lat": -26.1915246,
-    "lng": 28.0294821
+    "lng": 28.0294821,
+    "placeId": "ChIJq6rqlBoMlR4RRXAA6UnbmLI",
+    "entrance": null
   },
   {
     "id": "msl",
     "name": "Mathematical Sciences Laboratories",
-    "aliases": ["MSL", "msl", "Mathematical Science Laboratories"],
+    "category": "building",
+    "aliases": [
+      "msl",
+      "mathematical science laboratories",
+      "mathematical sciences laboratories"
+    ],
     "lat": -26.1905612,
-    "lng": 28.0268317
+    "lng": 28.0268317,
+    "placeId": "ChIJrzB20xoMlR4Ra5NdZxjcTUs",
+    "entrance": null
   }
 ]
